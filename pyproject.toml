@@ -7,9 +7,14 @@ license = "Apache-2.0"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = ">=3.8.1,<4.0"
 opentelemetry-api = "^1.21.0"
 opentelemetry-sdk = "^1.21.0"
+opentelemetry-exporter-otlp-proto-http = "^1.22.0"
+opentelemetry-instrumentation-requests = "^0.43b0"
+openai = {version = "^1.10.0", optional = true}
+opentelemetry-instrumentation-openai = { url = "https://whylabs-public.s3.us-west-2.amazonaws.com/beta/llm-traceguard/opentelemetry_instrumentation_openai-0.10.2.dev0-py3-none-any.whl", optional = true }
+
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
@@ -17,6 +22,13 @@ black = "^23.11.0"
 flake8 = { version = "^6.1.0", python = ">=3.8.1,<4" }
 pre-commit = "^3.5.0"
 mypy = "^1.7.0"
+ipykernel = "^6.27.1"
+
+[tool.poetry.extras]
+openai = [
+    "openai",
+    "opentelemetry-instrumentation-openai"
+]
 
 [build-system]
 requires = ["poetry-core"]
