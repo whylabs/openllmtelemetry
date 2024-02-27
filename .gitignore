@@ -77,3 +77,9 @@ target/
 
 # pyenv
 .python-versi
+
+.mypy_cache
+.venv
+notebooks/.ipynb_checkpoints
+
+.idea
