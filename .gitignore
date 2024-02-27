@@ -19,6 +19,7 @@ lib64/
 parts/
 sdist/
 var/
+venv/
 wheels/
 share/python-wheels/
 *.egg-info/
@@ -77,3 +78,6 @@ target/
 
 # pyenv
 .python-versi
+
+# VSCode
+.vscode/

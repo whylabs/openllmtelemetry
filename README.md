@@ -1,6 +1,6 @@
-# llm-traceguard
+# OpenLLMTelemetry
 
-**llm-traceguard** is an open-source Python library that provides Open Telemetry integration with Large Language Models (LLMs). It is designed to facilitate tracing and safeguarding applications that leverage LLMs, ensuring better monitoring and reliability.
+**openllmtelemetry** is an open-source Python library that provides Open Telemetry integration with Large Language Models (LLMs). It is designed to facilitate tracing applications that leverage LLMs and Generative AI, ensuring better observability and monitoring.
 
 ## Features
 
@@ -10,20 +10,20 @@
 
 ## Installation
 
-To install **llm-traceguard**, simply use pip:
+To install **OpenLLMTelemetry**, simply use pip:
 
 ```bash
-pip install llm-traceguard
+pip install openllmtelemetry
 ```
 
 ## Usage 🚀
 
-Here's a basic example of how to use **llm-traceguard** in your project:
+Here's a basic example of how to use **OpenLLMTelemetry** in your project:
 
 ```python
-import llm_traceguard
+import openllmtelemetry
 
-llm_traceguard.instrument()
+openllmtelemetry.instrument()
 ```
 
 ## Requirements 📋
@@ -38,7 +38,7 @@ Contributions are welcome! For major changes, please open an issue first to disc
 
 ## License 📄
 
-**llm-traceguard** is licensed under the Apache-2.0 License. See [LICENSE](LICENSE) for more details.
+**OpenLLMTelemetry** is licensed under the Apache-2.0 License. See [LICENSE](LICENSE) for more details.
 
 ## Contact 📧
 
