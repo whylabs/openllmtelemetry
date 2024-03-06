@@ -25,6 +25,9 @@ test: ## Run unit tests
 integ: ## Run integration tests
 	poetry run pytest -vvv -o log_level=INFO -o log_cli=true integ/
 
+dist: ## Build the distribution
+	poetry build
+
 help: ## Show this help message.
 	@echo 'usage: make [target] ...'
 	@echo

@@ -25,7 +25,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pyright]
-include = ["whylogs_container", "integ", "tests"]
+include = ["llm_traceguard", "tests"]
 typeCheckingMode = "strict"
 
 reportMissingTypeStubs = false
@@ -33,18 +33,17 @@ reportMissingParameterType = false
 reportMissingTypeArgumet = false
 
 [tool.ruff]
-line-length = 140
+line-length = 160
 indent-width = 4
-include = ["./whylogs_container/**/*.py", "./tests/**/*.py", "./integ/**/*.py"]
-select = ["E", "F", "I", "W"]
+include = ["./llm_traceguard/**/*.py", "./tests/**/*.py"]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["whylogs", "langkit", "tests"]
-
 
 [tool.ruff.lint]
 fixable = ["ALL"]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+select = ["E", "F", "I", "W"]
 
 [tool.ruff.format]
 quote-style = "double"
