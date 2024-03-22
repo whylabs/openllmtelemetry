@@ -1,10 +1,15 @@
-def package_version(package: str = __package__) -> str:
+from typing import Optional
+
+
+def package_version(package: Optional[str] = __package__) -> str:
     """Calculate version number based on pyproject.toml"""
+    if not package:
+        raise ValueError("No package specified when searching for package version")
     try:
         from importlib import metadata
 
         version = metadata.version(package)
-    except metadata.PackageNotFoundError:
+    except Exception:
         version = f"{package} is not installed."
 
     return version
