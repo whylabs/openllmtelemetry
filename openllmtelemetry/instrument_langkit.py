@@ -9,7 +9,7 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 
 logger = logging.getLogger(__name__)
 _LANGKIT_INSTRUMENTED = False
-_instruments = ("langkit >= 0.0.29, < 0.1",)
+_instruments = ("langkit>=0.0.29",)
 
 
 def _set_attribute(span, name, value):

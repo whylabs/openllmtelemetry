@@ -6,7 +6,6 @@ def init_openai_instrumentor(trace_provider):
         from openllmtelemetry.instrumentation.openai import OpenAIInstrumentor
 
         instrumentor = OpenAIInstrumentor()
-        if not instrumentor.is_instrumented_by_opentelemetry:
-            instrumentor.instrument(trace_provider=trace_provider)
+        instrumentor.instrument(trace_provider=trace_provider)
     else:
         raise ValueError("Need to install openai to instrument openai with OpenLLMTelemetry!")

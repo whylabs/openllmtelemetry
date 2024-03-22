@@ -6,7 +6,7 @@ from .utils import is_openai_v1
 from .v0 import OpenAIV0Instrumentor
 from .v1 import OpenAIV1Instrumentor
 
-_instruments = ("openai >= 0.27.0")
+_instruments = ("openai>=0.27.0",)
 
 
 class OpenAIInstrumentor(BaseInstrumentor):
