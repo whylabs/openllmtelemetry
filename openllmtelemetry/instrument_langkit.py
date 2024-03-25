@@ -1,11 +1,10 @@
 import importlib
 import logging
 from typing import Collection
+
 import wrapt
-
-from opentelemetry.trace import get_tracer, SpanKind
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
-
+from opentelemetry.trace import SpanKind, get_tracer
 
 logger = logging.getLogger(__name__)
 _LANGKIT_INSTRUMENTED = False
@@ -19,14 +18,13 @@ def _set_attribute(span, name, value):
 
 
 class LangKitInstrumentor(BaseInstrumentor):
-
     @property
     def is_instrumented(self):
         return _LANGKIT_INSTRUMENTED
 
     @property
     def schema(self):
-        return getattr(self, '_schema', None)
+        return getattr(self, "_schema", None)
 
     @schema.setter
     def schema(self, value):
@@ -57,8 +55,8 @@ class LangKitInstrumentor(BaseInstrumentor):
 
         logger.info("instrumenting LangKit extract")
         if self.schema is None:
-            from langkit import light_metrics
-            from langkit import vader_sentiment
+            from langkit import light_metrics, vader_sentiment
+
             vader_sentiment.init()
             self.schema = light_metrics.init()
         wrapt.wrap_function_wrapper(
@@ -79,4 +77,6 @@ def init_langkit_instrumentor(trace_provider, schema=None):
         if not instrumentor.is_instrumented:
             instrumentor.instrument(trace_provider=trace_provider)
     else:
-        logger.warning("langkit not installed, run `pip install langkit` first if you want extended LLM metrics traced with OpenLLMTelemetry!")
+        logger.warning(
+            "langkit not installed, run `pip install langkit` first if you want extended LLM metrics traced with OpenLLMTelemetry!"
+        )

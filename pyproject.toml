@@ -19,8 +19,11 @@ pytest = "^7.4.3"
 black = "^23.11.0"
 flake8 = { version = "^6.1.0", python = ">=3.8.1,<4" }
 pre-commit = "^3.5.0"
-mypy = "^1.7.0"
 ipykernel = "^6.27.1"
+pyright = "1.1.342"
+ruff = "^0.1.7"
+sphinx = "7.1.2"
+furo = "^2023.8.19"
 
 [tool.poetry.extras]
 openai = [
@@ -30,3 +33,31 @@ openai = [
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pyright]
+include = ["whylogs_container", "integ", "tests", "scripts"]
+typeCheckingMode = "strict"
+
+reportMissingTypeStubs = false
+reportMissingParameterType = false
+reportMissingTypeArgumet = false
+
+[tool.ruff]
+line-length = 140
+indent-width = 4
+include = ["./openlltelemetry/**/*.py", "./tests/**/*.py", "./integ/**/*.py", "./scripts/**/*.py"]
+select = ["E", "F", "I", "W"]
+
+[tool.ruff.isort]
+known-first-party = ["whylogs", "langkit"]
+
+
+[tool.ruff.lint]
+fixable = ["ALL"]
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

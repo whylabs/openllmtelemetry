@@ -1,6 +1,8 @@
-import openllmtelemetry
 import os
+
 import pytest
+
+import openllmtelemetry
 
 
 def test_instrument_checks_for_keys():

@@ -2,24 +2,20 @@ import json
 import logging
 
 from opentelemetry import context as context_api
-
-from opentelemetry.semconv.ai import SpanAttributes, LLMRequestTypeValues
-
-from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.instrumentation.openai.utils import _with_tracer_wrapper
 from opentelemetry.instrumentation.openai.shared import (
-    _set_request_attributes,
-    _set_span_attribute,
     _set_functions_attributes,
+    _set_request_attributes,
     _set_response_attributes,
+    _set_span_attribute,
     is_streaming_response,
-    should_send_prompts,
     model_as_dict,
+    should_send_prompts,
 )
+from opentelemetry.instrumentation.openai.utils import _with_tracer_wrapper, is_openai_v1
+from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.semconv.ai import LLMRequestTypeValues, SpanAttributes
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace.status import Status, StatusCode
-
-from opentelemetry.instrumentation.openai.utils import is_openai_v1
 
 SPAN_NAME = "openai.chat"
 LLM_REQUEST_TYPE = LLMRequestTypeValues.CHAT
@@ -121,9 +117,7 @@ def _set_completions(span, choices):
     for choice in choices:
         index = choice.get("index")
         prefix = f"{SpanAttributes.LLM_COMPLETIONS}.{index}"
-        _set_span_attribute(
-            span, f"{prefix}.finish_reason", choice.get("finish_reason")
-        )
+        _set_span_attribute(span, f"{prefix}.finish_reason", choice.get("finish_reason"))
 
         message = choice.get("message")
         if not message:
@@ -136,12 +130,8 @@ def _set_completions(span, choices):
         if not function_call:
             return
 
-        _set_span_attribute(
-            span, f"{prefix}.function_call.name", function_call.get("name")
-        )
-        _set_span_attribute(
-            span, f"{prefix}.function_call.arguments", function_call.get("arguments")
-        )
+        _set_span_attribute(span, f"{prefix}.function_call.name", function_call.get("name"))
+        _set_span_attribute(span, f"{prefix}.function_call.arguments", function_call.get("arguments"))
 
 
 def _build_from_streaming_response(span, response):
@@ -185,9 +175,7 @@ def _accumulate_stream_items(item, complete_response):
     for choice in item.get("choices"):
         index = choice.get("index")
         if len(complete_response.get("choices")) <= index:
-            complete_response["choices"].append(
-                {"index": index, "message": {"content": "", "role": ""}}
-            )
+            complete_response["choices"].append({"index": index, "message": {"content": "", "role": ""}})
         complete_choice = complete_response.get("choices")[index]
         if choice.get("finish_reason"):
             complete_choice["finish_reason"] = choice.get("finish_reason")

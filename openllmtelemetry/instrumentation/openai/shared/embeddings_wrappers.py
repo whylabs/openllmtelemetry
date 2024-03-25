@@ -1,24 +1,20 @@
 import logging
 
 from opentelemetry import context as context_api
-
-from opentelemetry.semconv.ai import SpanAttributes, LLMRequestTypeValues
-
-from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.instrumentation.openai.utils import (
-    _with_tracer_wrapper,
-    start_as_current_span_async,
-)
 from opentelemetry.instrumentation.openai.shared import (
     _set_request_attributes,
-    _set_span_attribute,
     _set_response_attributes,
-    should_send_prompts,
+    _set_span_attribute,
     model_as_dict,
+    should_send_prompts,
 )
-
-from opentelemetry.instrumentation.openai.utils import is_openai_v1
-
+from opentelemetry.instrumentation.openai.utils import (
+    _with_tracer_wrapper,
+    is_openai_v1,
+    start_as_current_span_async,
+)
+from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.semconv.ai import LLMRequestTypeValues, SpanAttributes
 from opentelemetry.trace import SpanKind
 
 SPAN_NAME = "openai.embeddings"
@@ -86,9 +82,7 @@ def _set_prompts(span, prompt):
             for i, p in enumerate(prompt):
                 print("HEYYY")
                 print(p)
-                _set_span_attribute(
-                    span, f"{SpanAttributes.LLM_PROMPTS}.{i}.content", p
-                )
+                _set_span_attribute(span, f"{SpanAttributes.LLM_PROMPTS}.{i}.content", p)
         else:
             _set_span_attribute(
                 span,
