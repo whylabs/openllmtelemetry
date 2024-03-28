@@ -70,10 +70,10 @@ class LangKitInstrumentor(BaseInstrumentor):
         logger.warning("uninstrument called on LangKit extract, doing nothing.")
 
 
-def init_langkit_instrumentor(trace_provider: TracerProvider, schema: Optional[Any] = None, **kwargs: Dict[str, Any]) -> None:
+def init_langkit_instrumentor(tracer_provider: TracerProvider, schema: Optional[Any] = None, **kwargs: Dict[str, Any]) -> None:
     if importlib.util.find_spec("langkit") is not None:  # type: ignore
         instrumentor = LangKitInstrumentor(schema=schema)
         if not instrumentor.is_instrumented:
-            instrumentor.instrument(trace_provider=trace_provider, **kwargs)  # type: ignore
+            instrumentor.instrument(tracer_provider=tracer_provider, **kwargs)  # type: ignore
     else:
         logger.warning("langkit not installed, run `pip install langkit` first if you want extended LLM metrics traced with OpenLLMTelemetry!")

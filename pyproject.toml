@@ -13,6 +13,8 @@ opentelemetry-sdk = "^1.21.0"
 opentelemetry-exporter-otlp-proto-http = "^1.22.0"
 opentelemetry-instrumentation-requests = "^0.43b0"
 openai = {version = ">0.7,<2.0", optional = true}
+langkit = {version = ">0.0.29,<0.1.0", optional = true}
+vadersentiment = {version = "^3.3.2", optional = true}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
@@ -29,13 +31,18 @@ bump2version = "^1.0.1"
 openai = [
     "openai"
 ]
+langkit = [
+    "langkit",
+    "vadersentiment"
+]
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pyright]
-include = ["llm_traceguard", "tests"]
+include = ["openllmtelemetry", "tests"]
+exclude = ["openllmtelemetry/instrumentation"]
 typeCheckingMode = "strict"
 
 reportMissingTypeStubs = false

@@ -19,20 +19,20 @@ diagnostic_logger = getLogger(__name__)
 # this will log as warnings the spans on export
 class DebugOTLPSpanExporter(OTLPSpanExporter):
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
-        diagnostic_logger.debug("Exporting spans...")
-        for span in spans:
-            diagnostic_logger.debug(f"Exporting span: {span.name}")
+        debug_enabled = os.environ.get("WHYLABS_DEBUG_TRACE")
+        if debug_enabled:
+            diagnostic_logger.warning("Exporting spans...")
+            for span in spans:
+                diagnostic_logger.warning(f"Exporting span: {span.name}")
 
         response = super().export(spans)
-        for span in spans:
-            diagnostic_logger.debug(f"Done exporting spans for: {span.to_json()}")
+        if debug_enabled:
+            for span in spans:
+                diagnostic_logger.warning(f"Done exporting spans for: {span.to_json()}")
         return response
 
 
-def instrument(
-        application_name: str = "open-llm-telemetry-instrumented-application",
-        extract_metrics: bool = False) -> Tracer:
-
+def instrument(application_name: str = "open-llm-telemetry-instrumented-application", extract_metrics: bool = False) -> Tracer:
     whylabs_api_key = os.environ.get("WHYLABS_API_KEY")
     dataset_id = os.environ.get("WHYLABS_DEFAULT_DATASET_ID")
     tracer_name = os.environ.get("WHYLABS_TRACER_NAME") or "open-llm-telemetry"
@@ -41,16 +41,16 @@ def instrument(
         raise ValueError("In order to export traces to WhyLabs you must set the env variables: WHYLABS_API_KEY and WHYLABS_DEFAULT_DATASET_ID")
     traces_endpoint = os.environ.get("WHYLABS_TRACES_ENDPOINT") or "https://api.whylabsapp.com/v1/traces"
 
-    resource = Resource(attributes={
-        "service.name": service_name,
-        "application.name": application_name,
-        "version": __version__,
-        "resource.id": dataset_id,
-    })
+    resource = Resource(
+        attributes={
+            "service.name": service_name,
+            "application.name": application_name,
+            "version": __version__,
+            "resource.id": dataset_id,
+        }
+    )
 
-    otlp_exporter = DebugOTLPSpanExporter(
-            endpoint=traces_endpoint,
-            headers={"X-API-Key": whylabs_api_key, "X-WHYLABS-RESOURCE": dataset_id})
+    otlp_exporter = DebugOTLPSpanExporter(endpoint=traces_endpoint, headers={"X-API-Key": whylabs_api_key, "X-WHYLABS-RESOURCE": dataset_id})
 
     span_processor = BatchSpanProcessor(otlp_exporter)
 
@@ -60,10 +60,10 @@ def instrument(
 
     trace.set_tracer_provider(tracer_provider)
 
-    init_openai_instrumentor(trace_provider=tracer_provider)
+    init_openai_instrumentor(tracer_provider=tracer_provider)
     if extract_metrics:
         diagnostic_logger.info("Attempting to add instrumentation to `langkit` metrics extraction to LLM traces")
-        init_langkit_instrumentor(trace_provider=tracer_provider)
+        init_langkit_instrumentor(tracer_provider=tracer_provider)
     else:
         diagnostic_logger.info(
             "Not adding `langkit` metrics to LLM traces but you can do so by passing the parameter into instrument"

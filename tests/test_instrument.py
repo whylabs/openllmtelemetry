@@ -32,6 +32,7 @@ def test_instrument_langkit():
 
 def test_version():
     from openllmtelemetry.version import __version__
+
     assert __version__ is not None
     assert isinstance(__version__, str)
     assert __version__.startswith("0.0")

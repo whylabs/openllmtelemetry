@@ -1,28 +1,25 @@
 import logging
 
 from opentelemetry import context as context_api
-
-from opentelemetry.semconv.ai import SpanAttributes, LLMRequestTypeValues
-
 from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.instrumentation.openai.utils import (
-    _with_tracer_wrapper,
-    start_as_current_span_async,
-)
-from opentelemetry.instrumentation.openai.shared import (
-    _set_request_attributes,
-    _set_span_attribute,
-    _set_functions_attributes,
-    _set_response_attributes,
-    is_streaming_response,
-    should_send_prompts,
-    model_as_dict,
-)
-
-from opentelemetry.instrumentation.openai.utils import is_openai_v1
-
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace.status import Status, StatusCode
+
+from openllmtelemetry.instrumentation.openai.shared import (
+    _set_functions_attributes,
+    _set_request_attributes,
+    _set_response_attributes,
+    _set_span_attribute,
+    is_streaming_response,
+    model_as_dict,
+    should_send_prompts,
+)
+from openllmtelemetry.instrumentation.openai.utils import (
+    _with_tracer_wrapper,
+    is_openai_v1,
+    start_as_current_span_async,
+)
+from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
 
 SPAN_NAME = "openai.completion"
 LLM_REQUEST_TYPE = LLMRequestTypeValues.COMPLETION
@@ -114,9 +111,7 @@ def _set_completions(span, choices):
         for choice in choices:
             index = choice.get("index")
             prefix = f"{SpanAttributes.LLM_COMPLETIONS}.{index}"
-            _set_span_attribute(
-                span, f"{prefix}.finish_reason", choice.get("finish_reason")
-            )
+            _set_span_attribute(span, f"{prefix}.finish_reason", choice.get("finish_reason"))
             _set_span_attribute(span, f"{prefix}.content", choice.get("text"))
     except Exception as e:
         logger.warning("Failed to set completion attributes, error: %s", str(e))

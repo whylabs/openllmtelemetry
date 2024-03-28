@@ -1,5 +1,5 @@
-from importlib.metadata import version
 from contextlib import asynccontextmanager
+from importlib.metadata import version
 
 
 def is_openai_v1():
