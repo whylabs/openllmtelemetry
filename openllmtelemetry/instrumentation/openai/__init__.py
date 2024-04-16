@@ -1,5 +1,5 @@
 import logging
-from typing import Collection
+from typing import Collection, Optional
 
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 
@@ -17,7 +17,7 @@ LOGGER = logging.getLogger(__name__)
 class OpenAIInstrumentor(BaseInstrumentor):
     """An instrumentor for OpenAI's client library."""
 
-    def __init__(self, secure_api: WhyLabsSecureApi):
+    def __init__(self, secure_api: Optional[WhyLabsSecureApi]):
         LOGGER.info("Instrumenting OpenAI")
 
         self._guard = secure_api

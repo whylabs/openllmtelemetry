@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from functools import wraps
-from typing import Collection
+from typing import Collection, Optional
 
 from opentelemetry import context as context_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
@@ -86,9 +86,7 @@ def _instrumented_model_invoke(fn, tracer, secure_api: WhyLabsSecureApi):
                     prompt = request_body["inputText"]
                 else:
                     LOGGER.debug("LLM not suppported yet")
-                    print("not supported yet")
-            print("Prompt: " + prompt)
-
+            LOGGER.debug(f"extracted prompt: {prompt}")
             # TODO: check for input text first
             response = fn(*args, **kwargs)
             # noinspection PyProtectedMember
@@ -116,7 +114,23 @@ def _instrumented_model_invoke(fn, tracer, secure_api: WhyLabsSecureApi):
 
 
 def _set_amazon_titan_span_attributes(span, request_body, response_body):
-    print(f"Body: {request_body}. Response: {response_body}")
+    try:
+        input_token_count = response_body.get("inputTextTokenCount") if response_body else None
+        if response_body:
+            results = response_body.get("results")
+            total_tokens = results[0].get("tokenCount") if results else None
+
+            _set_span_attribute(span, SpanAttributes.LLM_USAGE_TOTAL_TOKENS, total_tokens)
+
+        _set_span_attribute(span, SpanAttributes.LLM_USAGE_PROMPT_TOKENS, input_token_count)
+
+        if should_send_prompts():
+            _set_span_attribute(span, f"{SpanAttributes.LLM_PROMPTS}.0.user", request_body.get("inputText"))
+            contents = response_body.get("results")
+            _set_span_attribute(span, f"{SpanAttributes.LLM_COMPLETIONS}.0.content", contents[0].get('outputText') if contents else "")
+    except Exception as ex:  # pylint: disable=broad-except
+        LOGGER.warning(f"Failed to set input attributes for openai span, error:{str(ex)}")
+
 
 
 def _set_cohere_span_attributes(span, request_body, response_body):
@@ -172,7 +186,7 @@ def _set_llama_span_attributes(span, request_body, response_body):
 class BedrockInstrumentor(BaseInstrumentor):
     """An instrumentor for Bedrock's client library."""
 
-    def __init__(self, secure_api: WhyLabsSecureApi):
+    def __init__(self, secure_api: Optional[WhyLabsSecureApi]):
         self._secure_api = secure_api
 
     def instrumentation_dependencies(self) -> Collection[str]:

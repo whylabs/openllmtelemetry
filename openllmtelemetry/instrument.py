@@ -67,16 +67,16 @@ def instrument(
     guard_endpoint = whylabs_guard_endpoint or os.environ.get("WHYLABS_GUARD_ENDPOINT")
     guard_api_key = whylabs_guard_api_key or os.environ.get("WHYLABS_GUARD_API_KEY")
 
-    if guard_endpoint is None:
-        raise ValueError("Specify an env variable for WHYLABS_GUARD_ENDPOINT or pass in a value for parameter `whylabs_guard_endpoint`")
-    elif guard_api_key is None:
-        raise ValueError("Specify an env variable for WHYLABS_GUARD_API_KEY or pass in a value for parameter `whylabs_guard_api_key`")
-
-    secure_api = WhyLabsSecureApi(
-        guard_endpoint=guard_endpoint,
-        guard_api_key=guard_api_key,
-        dataset_id=dataset_id,
-    )
+    if guard_endpoint is None or guard_api_key is None:
+        LOGGER.warning("Missing env variables for WHYLABS_GUARD_ENDPOINT, LOGGER or parameters "
+                       "for `whylabs_guard_endpoint` and `whylabs_guard_api_key`, falling back to basic LLM tracing only")
+        secure_api = None
+    else:
+        secure_api = WhyLabsSecureApi(
+            guard_endpoint=guard_endpoint,
+            guard_api_key=guard_api_key,
+            dataset_id=dataset_id,
+        )
 
     resource = Resource(
         attributes={
