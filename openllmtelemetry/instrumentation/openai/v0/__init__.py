@@ -4,7 +4,6 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 from opentelemetry.trace import get_tracer
 from wrapt import wrap_function_wrapper
 
-from openllmtelemetry.guard import WhyLabsGuard
 from openllmtelemetry.instrumentation.openai.shared.chat_wrappers import (
     achat_wrapper,
     chat_wrapper,
@@ -18,12 +17,13 @@ from openllmtelemetry.instrumentation.openai.shared.embeddings_wrappers import (
     embeddings_wrapper,
 )
 from openllmtelemetry.instrumentation.openai.version import __version__
+from openllmtelemetry.secure import WhyLabsSecureApi
 
 _instruments = ("openai >= 0.27.0", "openai < 1.0.0")
 
 
 class OpenAIV0Instrumentor(BaseInstrumentor):
-    def __init__(self, guard: WhyLabsGuard):
+    def __init__(self, guard: WhyLabsSecureApi):
         self._guard = guard
 
     def instrumentation_dependencies(self) -> Collection[str]:

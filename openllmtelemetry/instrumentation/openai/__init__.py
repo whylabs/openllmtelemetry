@@ -3,7 +3,7 @@ from typing import Collection
 
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 
-from openllmtelemetry.guard import WhyLabsGuard
+from openllmtelemetry.secure import WhyLabsSecureApi
 
 from .utils import is_openai_v1
 from .v0 import OpenAIV0Instrumentor
@@ -17,7 +17,7 @@ LOGGER = logging.getLogger(__name__)
 class OpenAIInstrumentor(BaseInstrumentor):
     """An instrumentor for OpenAI's client library."""
 
-    def __init__(self, guard: WhyLabsGuard):
+    def __init__(self, guard: WhyLabsSecureApi):
         LOGGER.info("Instrumenting Bedrock")
 
         self._guard = guard

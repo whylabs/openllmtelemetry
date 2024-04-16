@@ -8,8 +8,8 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-from openllmtelemetry.guard import WhyLabsGuard
 from openllmtelemetry.intrument_openai import init_instrumentors
+from openllmtelemetry.secure import WhyLabsSecureApi
 from openllmtelemetry.version import __version__
 
 LOGGER = getLogger(__name__)
@@ -67,7 +67,7 @@ def instrument(
     if whylabs_guard_api_key is None:
         whylabs_guard_api_key = os.environ.get("WHYLABS_GUARD_API_KEY")
 
-    guard = WhyLabsGuard(
+    guard = WhyLabsSecureApi(
         guard_endpoint=whylabs_guard_endpoint,
         guard_api_key=whylabs_guard_api_key,
         dataset_id=dataset_id,

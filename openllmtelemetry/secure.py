@@ -9,7 +9,7 @@ from whylogs_container_client.models import EvaluationResult, HTTPValidationErro
 LOGGER = logging.getLogger(__name__)
 
 
-class WhyLabsGuard(object):
+class WhyLabsSecureApi(object):
     def __init__(
         self,
         guard_endpoint: str,

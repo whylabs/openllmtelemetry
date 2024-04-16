@@ -9,7 +9,6 @@ from opentelemetry.semconv.ai import LLMRequestTypeValues, SpanAttributes
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace.status import Status, StatusCode
 
-from openllmtelemetry.guard import WhyLabsGuard  # noqa: E402
 from openllmtelemetry.instrumentation.openai.shared import (
     _set_functions_attributes,
     _set_request_attributes,
@@ -20,6 +19,7 @@ from openllmtelemetry.instrumentation.openai.shared import (
     should_send_prompts,
 )
 from openllmtelemetry.instrumentation.openai.utils import _with_tracer_wrapper, is_openai_v1
+from openllmtelemetry.secure import WhyLabsSecureApi  # noqa: E402
 
 SPAN_NAME = "openai.chat"
 LLM_REQUEST_TYPE = LLMRequestTypeValues.CHAT
@@ -28,7 +28,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 @_with_tracer_wrapper
-def chat_wrapper(tracer, guard: WhyLabsGuard, wrapped, instance, args, kwargs):
+def chat_wrapper(tracer, secure_api: WhyLabsSecureApi, wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
@@ -39,7 +39,7 @@ def chat_wrapper(tracer, guard: WhyLabsGuard, wrapped, instance, args, kwargs):
         attributes={SpanAttributes.LLM_REQUEST_TYPE: LLM_REQUEST_TYPE.value, "span.type": "completion"},
     )
 
-    (prompt, prompt_metrics) = _handle_request(guard, span, kwargs)
+    (prompt, prompt_metrics) = _handle_request(secure_api, span, kwargs)
     if prompt_metrics:
         LOGGER.debug(prompt_metrics)
         metrics = prompt_metrics.metrics[0]
@@ -54,14 +54,14 @@ def chat_wrapper(tracer, guard: WhyLabsGuard, wrapped, instance, args, kwargs):
         # span will be closed after the generator is done
         return _build_from_streaming_response(span, response)
 
-    _handle_response(guard, prompt, response, span)
+    _handle_response(secure_api, prompt, response, span)
     span.end()
 
     return response
 
 
 @_with_tracer_wrapper
-async def achat_wrapper(tracer, guard: WhyLabsGuard, wrapped, instance, args, kwargs):
+async def achat_wrapper(tracer, guard: WhyLabsSecureApi, wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
@@ -85,7 +85,7 @@ async def achat_wrapper(tracer, guard: WhyLabsGuard, wrapped, instance, args, kw
     return response
 
 
-def _handle_request(guard: WhyLabsGuard, span, kwargs):
+def _handle_request(secure_api: WhyLabsSecureApi, span, kwargs):
     _set_request_attributes(span, kwargs)
     stream = kwargs.get("stream")
     LOGGER.debug("Stream: %s. ", stream)
@@ -93,7 +93,7 @@ def _handle_request(guard: WhyLabsGuard, span, kwargs):
     messages = kwargs.get("messages")
     user_messages = [m["content"] for m in messages if m["role"] == "user"]
     prompt = user_messages[-1]
-    prompt_metrics = guard.eval_prompt(prompt)
+    prompt_metrics = secure_api.eval_prompt(prompt)
     if should_send_prompts():
         _set_prompts(span, messages)
         _set_functions_attributes(span, kwargs.get("functions"))
@@ -101,13 +101,13 @@ def _handle_request(guard: WhyLabsGuard, span, kwargs):
     return prompt, prompt_metrics
 
 
-def _handle_response(guard: WhyLabsGuard, prompt, response, span):
+def _handle_response(secure_api: WhyLabsSecureApi, prompt, response, span):
     if is_openai_v1():
         response_dict = model_as_dict(response)
     else:
         response_dict = response
     response = response_dict["choices"][0]["message"]["content"]
-    response_metrics = guard.eval_response(prompt=prompt, response=response)
+    response_metrics = secure_api.eval_response(prompt=prompt, response=response)
     if response_metrics:
         LOGGER.debug(response_metrics)
         metrics = response_metrics.metrics[0]

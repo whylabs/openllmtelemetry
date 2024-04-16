@@ -3,17 +3,17 @@ import logging
 
 from opentelemetry.sdk.trace import Tracer
 
-from openllmtelemetry.guard import WhyLabsGuard
+from openllmtelemetry.secure import WhyLabsSecureApi
 
 LOGGER = logging.getLogger(__name__)
 
 
-def init_instrumentors(trace_provider: Tracer, guard: WhyLabsGuard):
+def init_instrumentors(trace_provider: Tracer, guard: WhyLabsSecureApi):
     for instrumentor in [init_openai_instrumentor, init_bedrock_instrumentor]:
         instrumentor(trace_provider=trace_provider, guard=guard)
 
 
-def init_openai_instrumentor(trace_provider: Tracer, guard: WhyLabsGuard):
+def init_openai_instrumentor(trace_provider: Tracer, guard: WhyLabsSecureApi):
     if importlib.util.find_spec("openai") is not None:
         from openllmtelemetry.instrumentation.openai import OpenAIInstrumentor
 
@@ -23,7 +23,7 @@ def init_openai_instrumentor(trace_provider: Tracer, guard: WhyLabsGuard):
         LOGGER.warning("OpenAPI not found, skipping instrumentation")
 
 
-def init_bedrock_instrumentor(trace_provider: Tracer, guard: WhyLabsGuard):
+def init_bedrock_instrumentor(trace_provider: Tracer, guard: WhyLabsSecureApi):
     if importlib.util.find_spec("boto3") is not None:
         from openllmtelemetry.instrumentation.bedrock import BedrockInstrumentor
 
