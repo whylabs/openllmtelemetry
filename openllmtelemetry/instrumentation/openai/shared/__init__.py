@@ -5,6 +5,7 @@ import types
 from importlib.metadata import version
 
 import openai
+
 from openllmtelemetry.instrumentation.openai.utils import is_openai_v1
 from openllmtelemetry.semantic_conventions.gen_ai import SpanAttributes
 

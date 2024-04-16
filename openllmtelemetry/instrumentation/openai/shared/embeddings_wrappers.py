@@ -2,6 +2,7 @@ import logging
 
 from opentelemetry import context as context_api
 from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.semconv.ai import LLMRequestTypeValues, SpanAttributes
 from opentelemetry.trace import SpanKind
 
 from openllmtelemetry.instrumentation.openai.shared import (
@@ -16,7 +17,6 @@ from openllmtelemetry.instrumentation.openai.utils import (
     is_openai_v1,
     start_as_current_span_async,
 )
-from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
 
 SPAN_NAME = "openai.embeddings"
 LLM_REQUEST_TYPE = LLMRequestTypeValues.EMBEDDING
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 @_with_tracer_wrapper
-def embeddings_wrapper(tracer, wrapped, instance, args, kwargs):
+def embeddings_wrapper(tracer, guard, wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
@@ -42,7 +42,7 @@ def embeddings_wrapper(tracer, wrapped, instance, args, kwargs):
 
 
 @_with_tracer_wrapper
-async def aembeddings_wrapper(tracer, wrapped, instance, args, kwargs):
+async def aembeddings_wrapper(tracer, guard, wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 

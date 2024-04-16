@@ -17,11 +17,15 @@ from openllmtelemetry.instrumentation.openai.shared.embeddings_wrappers import (
     embeddings_wrapper,
 )
 from openllmtelemetry.instrumentation.openai.version import __version__
+from openllmtelemetry.secure import WhyLabsSecureApi
 
 _instruments = ("openai >= 1.0.0",)
 
 
 class OpenAIV1Instrumentor(BaseInstrumentor):
+    def __init__(self, guard: WhyLabsSecureApi):
+        self._secure_api = guard
+
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
@@ -32,32 +36,32 @@ class OpenAIV1Instrumentor(BaseInstrumentor):
         wrap_function_wrapper(
             "openai.resources.chat.completions",
             "Completions.create",
-            chat_wrapper(tracer),
+            chat_wrapper(tracer, self._secure_api),
         )
         wrap_function_wrapper(
             "openai.resources.completions",
             "Completions.create",
-            completion_wrapper(tracer),
+            completion_wrapper(tracer, self._secure_api),
         )
         wrap_function_wrapper(
             "openai.resources.embeddings",
             "Embeddings.create",
-            embeddings_wrapper(tracer),
+            embeddings_wrapper(tracer, self._secure_api),
         )
         wrap_function_wrapper(
             "openai.resources.chat.completions",
             "AsyncCompletions.create",
-            achat_wrapper(tracer),
+            achat_wrapper(tracer, self._secure_api),
         )
         wrap_function_wrapper(
             "openai.resources.completions",
             "AsyncCompletions.create",
-            acompletion_wrapper(tracer),
+            acompletion_wrapper(tracer, self._secure_api),
         )
         wrap_function_wrapper(
             "openai.resources.embeddings",
             "AsyncEmbeddings.create",
-            aembeddings_wrapper(tracer),
+            aembeddings_wrapper(tracer, self._secure_api),
         )
 
     def _uninstrument(self, **kwargs):
