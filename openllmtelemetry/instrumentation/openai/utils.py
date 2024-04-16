@@ -7,9 +7,9 @@ def is_openai_v1():
 
 
 def _with_tracer_wrapper(func):
-    def _with_tracer(tracer):
+    def _with_tracer(tracer, guard):
         def wrapper(wrapped, instance, args, kwargs):
-            return func(tracer, wrapped, instance, args, kwargs)
+            return func(tracer, guard, wrapped, instance, args, kwargs)
 
         return wrapper
 

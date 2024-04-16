@@ -2,7 +2,15 @@ import json
 import logging
 
 from opentelemetry import context as context_api
-from opentelemetry.instrumentation.openai.shared import (
+
+# noinspection PyProtectedMember
+from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.semconv.ai import LLMRequestTypeValues, SpanAttributes
+from opentelemetry.trace import SpanKind
+from opentelemetry.trace.status import Status, StatusCode
+
+from openllmtelemetry.guard import WhyLabsGuard  # noqa: E402
+from openllmtelemetry.instrumentation.openai.shared import (
     _set_functions_attributes,
     _set_request_attributes,
     _set_response_attributes,
@@ -11,20 +19,16 @@ from opentelemetry.instrumentation.openai.shared import (
     model_as_dict,
     should_send_prompts,
 )
-from opentelemetry.instrumentation.openai.utils import _with_tracer_wrapper, is_openai_v1
-from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.semconv.ai import LLMRequestTypeValues, SpanAttributes
-from opentelemetry.trace import SpanKind
-from opentelemetry.trace.status import Status, StatusCode
+from openllmtelemetry.instrumentation.openai.utils import _with_tracer_wrapper, is_openai_v1
 
 SPAN_NAME = "openai.chat"
 LLM_REQUEST_TYPE = LLMRequestTypeValues.CHAT
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 @_with_tracer_wrapper
-def chat_wrapper(tracer, wrapped, instance, args, kwargs):
+def chat_wrapper(tracer, guard: WhyLabsGuard, wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
@@ -35,21 +39,29 @@ def chat_wrapper(tracer, wrapped, instance, args, kwargs):
         attributes={SpanAttributes.LLM_REQUEST_TYPE: LLM_REQUEST_TYPE.value, "span.type": "completion"},
     )
 
-    _handle_request(span, kwargs)
+    (prompt, prompt_metrics) = _handle_request(guard, span, kwargs)
+    if prompt_metrics:
+        LOGGER.debug(prompt_metrics)
+        metrics = prompt_metrics.metrics[0]
+
+        for k in metrics.additional_keys:
+            if metrics.additional_properties[k] is not None:
+                span.set_attribute(f"langkit.metrics.{k}", metrics.additional_properties[k])
+
     response = wrapped(*args, **kwargs)
 
     if is_streaming_response(response):
         # span will be closed after the generator is done
         return _build_from_streaming_response(span, response)
 
-    _handle_response(response, span)
+    _handle_response(guard, prompt, response, span)
     span.end()
 
     return response
 
 
 @_with_tracer_wrapper
-async def achat_wrapper(tracer, wrapped, instance, args, kwargs):
+async def achat_wrapper(tracer, guard: WhyLabsGuard, wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
@@ -58,31 +70,51 @@ async def achat_wrapper(tracer, wrapped, instance, args, kwargs):
         kind=SpanKind.CLIENT,
         attributes={SpanAttributes.LLM_REQUEST_TYPE: LLM_REQUEST_TYPE.value, "span.type": "completion"},
     )
-    _handle_request(span, kwargs)
+    (prompt, prompt_metrics) = _handle_request(guard, span, kwargs)
+    LOGGER.debug("Prompt metrics: ", prompt_metrics)
     response = await wrapped(*args, **kwargs)
+    LOGGER.debug(f"Async type response: {type(response)}")
 
     if is_streaming_response(response):
         # span will be closed after the generator is done
         return _abuild_from_streaming_response(span, response)
 
-    _handle_response(response, span)
+    _handle_response(guard, prompt, response, span)
     span.end()
 
     return response
 
 
-def _handle_request(span, kwargs):
+def _handle_request(guard: WhyLabsGuard, span, kwargs):
     _set_request_attributes(span, kwargs)
+    stream = kwargs.get("stream")
+    LOGGER.debug("Stream: %s. ", stream)
+    LOGGER.debug(f"Stream: {stream}")
+    messages = kwargs.get("messages")
+    user_messages = [m["content"] for m in messages if m["role"] == "user"]
+    prompt = user_messages[-1]
+    prompt_metrics = guard.eval_prompt(prompt)
     if should_send_prompts():
-        _set_prompts(span, kwargs.get("messages"))
+        _set_prompts(span, messages)
         _set_functions_attributes(span, kwargs.get("functions"))
 
+    return prompt, prompt_metrics
 
-def _handle_response(response, span):
+
+def _handle_response(guard: WhyLabsGuard, prompt, response, span):
     if is_openai_v1():
         response_dict = model_as_dict(response)
     else:
         response_dict = response
+    response = response_dict["choices"][0]["message"]["content"]
+    response_metrics = guard.eval_response(prompt=prompt, response=response)
+    if response_metrics:
+        LOGGER.debug(response_metrics)
+        metrics = response_metrics.metrics[0]
+
+        for k in metrics.additional_keys:
+            if metrics.additional_properties[k] is not None:
+                span.set_attribute(f"langkit.metrics.{k}", metrics.additional_properties[k])
 
     _set_response_attributes(span, response_dict)
 
@@ -99,13 +131,15 @@ def _set_prompts(span, messages):
     try:
         for i, msg in enumerate(messages):
             prefix = f"{SpanAttributes.LLM_PROMPTS}.{i}"
+            content = None
             if isinstance(msg.get("content"), str):
                 content = msg.get("content")
             elif isinstance(msg.get("content"), list):
                 content = json.dumps(msg.get("content"))
 
             _set_span_attribute(span, f"{prefix}.role", msg.get("role"))
-            _set_span_attribute(span, f"{prefix}.content", content)
+            if content:
+                _set_span_attribute(span, f"{prefix}.content", content)
     except Exception as ex:  # pylint: disable=broad-except
         logger.warning("Failed to set prompts for openai span, error: %s", str(ex))
 

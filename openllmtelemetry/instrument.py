@@ -8,8 +8,8 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-from openllmtelemetry.instrument_langkit import init_langkit_instrumentor
-from openllmtelemetry.intrument_openai import init_openai_instrumentor
+from openllmtelemetry.guard import WhyLabsGuard
+from openllmtelemetry.intrument_openai import init_instrumentors
 from openllmtelemetry.version import __version__
 
 LOGGER = getLogger(__name__)
@@ -18,6 +18,7 @@ LOGGER = getLogger(__name__)
 # this will log as warnings the spans on export
 class DebugOTLPSpanExporter(OTLPSpanExporter):
     def export(self, spans: Sequence[ReadableSpan]):
+        print("Exporting spans...")
         LOGGER.debug("Exporting spans...")
         for span in spans:
             LOGGER.debug(f"Exporting span: {span.name}")
@@ -32,14 +33,20 @@ class DebugOTLPSpanExporter(OTLPSpanExporter):
 
 
 def instrument(
-    application_name: str = "open-llm-telemetry-instrumented-application",
-    extract_metrics: bool = False,
-    console_out: bool = False,
+    application_name: str = None,
+    whylabs_guard_endpoint: Optional[str] = None,
+    whylabs_guard_api_key: Optional[str] = None,
     whylabs_api_key: Optional[str] = None,
     dataset_id: Optional[str] = None,
     tracer_name: Optional[str] = None,
     service_name: Optional[str] = None,
 ):
+    if application_name is None:
+        otel_service_name = os.environ.get("OTEL_SERVICE_NAME")
+        if otel_service_name:
+            application_name = otel_service_name
+        else:
+            application_name = "unknown-llm-app"
     if whylabs_api_key is None:
         whylabs_api_key = os.environ.get("WHYLABS_API_KEY")
     if dataset_id is None:
@@ -54,6 +61,18 @@ def instrument(
         )
     traces_endpoint = os.environ.get("WHYLABS_TRACES_ENDPOINT") or "https://api.whylabsapp.com/v1/traces"
 
+    if whylabs_guard_endpoint is None:
+        whylabs_guard_endpoint = os.environ.get("WHYLABS_GUARD_ENDPOINT")
+
+    if whylabs_guard_api_key is None:
+        whylabs_guard_api_key = os.environ.get("WHYLABS_GUARD_API_KEY")
+
+    guard = WhyLabsGuard(
+        guard_endpoint=whylabs_guard_endpoint,
+        guard_api_key=whylabs_guard_api_key,
+        dataset_id=dataset_id,
+    )
+
     resource = Resource(
         attributes={
             "service.name": service_name,
@@ -67,7 +86,7 @@ def instrument(
         endpoint=traces_endpoint, headers={"X-API-Key": whylabs_api_key, "X-WHYLABS-RESOURCE": dataset_id}
     )
 
-    span_processor = BatchSpanProcessor(otlp_exporter)
+    span_processor = BatchSpanProcessor(otlp_exporter, schedule_delay_millis=1, max_export_batch_size=1, max_queue_size=1)
 
     tracer_provider = TracerProvider(resource=resource)
     tracer_provider.add_span_processor(span_processor)
@@ -75,13 +94,4 @@ def instrument(
 
     trace.set_tracer_provider(tracer_provider)
 
-    init_openai_instrumentor(tracer)
-    if extract_metrics:
-        LOGGER.info("Attempting to add instrumentation to `langkit` metrics extraction to LLM traces")
-        init_langkit_instrumentor(tracer)
-    else:
-        LOGGER.info(
-            "Not adding `langkit` metrics to LLM traces but you can do so by passing the parameter into "
-            "instrument like this: instrument(extract_metrics=True)"
-        )
-    return tracer
+    init_instrumentors(tracer, guard)

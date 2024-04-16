@@ -1,7 +1,12 @@
 import logging
 
 from opentelemetry import context as context_api
-from opentelemetry.instrumentation.openai.shared import (
+from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
+from opentelemetry.semconv.ai import LLMRequestTypeValues, SpanAttributes
+from opentelemetry.trace import SpanKind
+from opentelemetry.trace.status import Status, StatusCode
+
+from openllmtelemetry.instrumentation.openai.shared import (
     _set_functions_attributes,
     _set_request_attributes,
     _set_response_attributes,
@@ -10,15 +15,11 @@ from opentelemetry.instrumentation.openai.shared import (
     model_as_dict,
     should_send_prompts,
 )
-from opentelemetry.instrumentation.openai.utils import (
+from openllmtelemetry.instrumentation.openai.utils import (
     _with_tracer_wrapper,
     is_openai_v1,
     start_as_current_span_async,
 )
-from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.semconv.ai import LLMRequestTypeValues, SpanAttributes
-from opentelemetry.trace import SpanKind
-from opentelemetry.trace.status import Status, StatusCode
 
 SPAN_NAME = "openai.completion"
 LLM_REQUEST_TYPE = LLMRequestTypeValues.COMPLETION
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 @_with_tracer_wrapper
-def completion_wrapper(tracer, wrapped, instance, args, kwargs):
+def completion_wrapper(tracer, guard, wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
@@ -52,7 +53,7 @@ def completion_wrapper(tracer, wrapped, instance, args, kwargs):
 
 
 @_with_tracer_wrapper
-async def acompletion_wrapper(tracer, wrapped, instance, args, kwargs):
+async def acompletion_wrapper(tracer, guard, wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 

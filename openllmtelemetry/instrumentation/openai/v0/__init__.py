@@ -1,26 +1,31 @@
 from typing import Collection
 
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
-from opentelemetry.instrumentation.openai.shared.chat_wrappers import (
+from opentelemetry.trace import get_tracer
+from wrapt import wrap_function_wrapper
+
+from openllmtelemetry.guard import WhyLabsGuard
+from openllmtelemetry.instrumentation.openai.shared.chat_wrappers import (
     achat_wrapper,
     chat_wrapper,
 )
-from opentelemetry.instrumentation.openai.shared.completion_wrappers import (
+from openllmtelemetry.instrumentation.openai.shared.completion_wrappers import (
     acompletion_wrapper,
     completion_wrapper,
 )
-from opentelemetry.instrumentation.openai.shared.embeddings_wrappers import (
+from openllmtelemetry.instrumentation.openai.shared.embeddings_wrappers import (
     aembeddings_wrapper,
     embeddings_wrapper,
 )
-from opentelemetry.instrumentation.openai.version import __version__
-from opentelemetry.trace import get_tracer
-from wrapt import wrap_function_wrapper
+from openllmtelemetry.instrumentation.openai.version import __version__
 
 _instruments = ("openai >= 0.27.0", "openai < 1.0.0")
 
 
 class OpenAIV0Instrumentor(BaseInstrumentor):
+    def __init__(self, guard: WhyLabsGuard):
+        self._guard = guard
+
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
