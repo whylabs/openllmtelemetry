@@ -93,7 +93,8 @@ def _handle_request(secure_api: WhyLabsSecureApi, span, kwargs):
     messages = kwargs.get("messages")
     user_messages = [m["content"] for m in messages if m["role"] == "user"]
     prompt = user_messages[-1]
-    prompt_metrics = secure_api.eval_prompt(prompt)
+    prompt_metrics = secure_api.eval_prompt(prompt) if secure_api is not None else None
+
     if should_send_prompts():
         _set_prompts(span, messages)
         _set_functions_attributes(span, kwargs.get("functions"))
@@ -107,7 +108,7 @@ def _handle_response(secure_api: WhyLabsSecureApi, prompt, response, span):
     else:
         response_dict = response
     response = response_dict["choices"][0]["message"]["content"]
-    response_metrics = secure_api.eval_response(prompt=prompt, response=response)
+    response_metrics = secure_api.eval_response(prompt=prompt, response=response) if secure_api is not None else None
     if response_metrics:
         LOGGER.debug(response_metrics)
         metrics = response_metrics.metrics[0]

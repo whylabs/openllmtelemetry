@@ -80,7 +80,33 @@ response = client.chat.completions.create(
 )
 ```
 
+## Integration: Amazon Bedrock
 
+One of the nice things about `openllmtelemetry` is that a single call to intrument your app can work across various LLM providers, using the same instrument call above, you can also invoke models using the boto3 client's bedrock-runtime and interaction with LLMs such as Titan and you get the same level of telemetry extracted and sent to WhyLabs
+
+Note: you may have to test that your boto3 credentials are working to be able to use the below example
+For details see [boto3 documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html)
+
+```python
+import json
+import boto3
+
+
+def bedrock_titan(prompt: str):
+    try:
+        model_id = 'amazon.titan-text-express-v1'
+        brt = boto3.client(service_name='bedrock-runtime')
+        response = brt.invoke_model(body=json.dumps({"inputText": prompt}), modelId=model_id)
+        response_body = json.loads(response.get("body").read())
+
+    except Exception as error:
+        logger.error(f"A client error occurred:{error}")
+
+    return response_body
+
+response = bedrock_titan("What is your name and what is the origin and reason for that name?")
+print(response)
+```
 
 ## Requirements 📋
 

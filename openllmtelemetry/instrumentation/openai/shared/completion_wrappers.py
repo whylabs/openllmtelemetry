@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from opentelemetry import context as context_api
 from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 @_with_tracer_wrapper
-def completion_wrapper(tracer, secure_api: WhyLabsSecureApi, wrapped, instance, args, kwargs):
+def completion_wrapper(tracer, secure_api: Optional[WhyLabsSecureApi], wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
@@ -54,7 +55,7 @@ def completion_wrapper(tracer, secure_api: WhyLabsSecureApi, wrapped, instance, 
 
 
 @_with_tracer_wrapper
-async def acompletion_wrapper(tracer, guard: WhyLabsSecureApi, wrapped, instance, args, kwargs):
+async def acompletion_wrapper(tracer, guard: Optional[WhyLabsSecureApi], wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
