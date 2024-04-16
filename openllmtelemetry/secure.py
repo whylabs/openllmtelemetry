@@ -34,7 +34,7 @@ class WhyLabsSecureApi(object):
             token=guard_api_key,  #
             prefix="",  #
             auth_header_name=auth_header_name,  # type: ignore
-            timeout=Timeout(timeout, read=timeout), # type: ignore
+            timeout=Timeout(timeout, read=timeout),  # type: ignore
         )  # type: ignore
 
     def eval_prompt(self, prompt: str) -> Optional[EvaluationResult]:
@@ -43,8 +43,9 @@ class WhyLabsSecureApi(object):
 
         if isinstance(res, HTTPValidationError):
             # TODO: log out the client version and the API endpoint version
-            LOGGER.warning(f"GuardRail request validation failure detected. Possible version mismatched: {res}")
+            LOGGER.warning(f"GuardRail request validation failure detected. result was: {res} Possible version mismatched.")
             return None
+        LOGGER.debug(f"Done calling eval_prompt on prompt: {prompt} -> res: {res}")
         return res
 
     def eval_response(self, prompt: str, response: str) -> Optional[EvaluationResult]:
@@ -53,7 +54,7 @@ class WhyLabsSecureApi(object):
         if isinstance(res, HTTPValidationError):
             LOGGER.warning(f"GuardRail request validation failure detected. Possible version mismatched: {res}")
             return None
-
+        LOGGER.debug(f"Done calling eval_response on [prompt: {prompt}, response: {response}] -> res: {res}")
         return res
 
     def eval_chunk(self, chunk: str) -> Optional[EvaluationResult]:
@@ -63,5 +64,5 @@ class WhyLabsSecureApi(object):
         if isinstance(res, HTTPValidationError):
             LOGGER.warning(f"GuardRail request validation failure detected. Possible version mismatched: {res}")
             return None
-
+        LOGGER.debug(f"Done calling eval_chunk on prompt: {chunk} -> res: {res}")
         return res

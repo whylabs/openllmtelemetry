@@ -21,14 +21,16 @@ class DebugOTLPSpanExporter(OTLPSpanExporter):
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         debug_enabled = os.environ.get("WHYLABS_DEBUG_TRACE")
         if debug_enabled:
-            LOGGER.info("Exporting spans...")
+            LOGGER.debug("Exporting spans...")
             for span in spans:
-                LOGGER.info(f"Exporting span: {span.name}")
-
-        response = super().export(spans)
+                LOGGER.debug(f"Exporting span: {span.name}")
+        try:
+            response = super().export(spans)
+        except Exception as e:
+            LOGGER.error(f"Error exporting spans: {e}")
         if debug_enabled:
             for span in spans:
-                LOGGER.info(f"Done exporting spans for: {span.to_json()}")
+                LOGGER.warning(f"Done exporting spans for: {span.to_json()}")
         return response
 
 
