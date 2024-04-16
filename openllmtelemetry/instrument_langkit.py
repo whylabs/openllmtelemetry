@@ -41,7 +41,7 @@ class LangKitInstrumentor(BaseInstrumentor):
         _tracer: Tracer = get_tracer(instrumenting_module_name=__name__, tracer_provider=_tracer_provider)
 
         def instrumented_extract(wrapped: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
-            with _tracer.start_as_current_span(name="guards", kind=SpanKind.SERVER) as langkit_span:
+            with _tracer.start_as_current_span(name="langkit-extract", kind=SpanKind.SERVER) as langkit_span:
                 logger.debug("Calling wrapped langkit.extract!")
                 user_llm_interaction_with_metrics = wrapped(*args, **kwargs)
                 for metric_name in user_llm_interaction_with_metrics:
