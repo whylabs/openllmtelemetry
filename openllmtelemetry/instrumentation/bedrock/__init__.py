@@ -26,7 +26,7 @@ WRAPPED_METHODS = [{"package": "botocore.client", "object": "ClientCreator", "me
 
 
 def should_send_prompts():
-    return (os.getenv("TRACELOOP_TRACE_CONTENT") or "true").lower() == "true" or context_api.get_value("override_enable_content_tracing")
+    return (os.getenv("TRACE_PROMPT_AND_RESPONSE") or "true").lower() == "true" or context_api.get_value("override_enable_content_tracing")
 
 
 def _set_span_attribute(span, name, value):
@@ -100,19 +100,20 @@ def _instrumented_model_invoke(fn, tracer):
             elif vendor == "anthropic":
                 _set_anthropic_span_attributes(span, request_body, response_body)
             elif vendor == "ai21":
+                print("a21")
                 _set_ai21_span_attributes(span, request_body, response_body)
             elif vendor == "meta":
                 _set_llama_span_attributes(span, request_body, response_body)
             elif vendor == "amazon":
                 print("Bedrock vendor")
-                _set_amazon_titen_span_attributes(span, request_body, response_body)
+                _set_amazon_titan_span_attributes(span, request_body, response_body)
 
             return response
 
     return with_instrumentation
 
 
-def _set_amazon_titen_span_attributes(span, request_body, response_body):
+def _set_amazon_titan_span_attributes(span, request_body, response_body):
     print(f"Body: {request_body}. Response: {response_body}")
 
 

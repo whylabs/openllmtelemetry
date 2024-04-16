@@ -16,7 +16,6 @@ class ReusableStreamingBody(StreamingBody):
         self._buffer_cursor = 0
 
     def read(self, amt=None):
-        print("Bedrock bedrock")
         """Read at most amt bytes from the stream.
 
         If the amt argument is omitted, read all data.
