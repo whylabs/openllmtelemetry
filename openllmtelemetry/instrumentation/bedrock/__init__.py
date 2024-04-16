@@ -115,6 +115,7 @@ def _instrumented_model_invoke(fn, tracer, secure_api: WhyLabsSecureApi):
 
 def _set_amazon_titan_span_attributes(span, request_body, response_body):
     try:
+        _set_span_attribute(span, "span.type", "completion")
         input_token_count = response_body.get("inputTextTokenCount") if response_body else None
         if response_body:
             results = response_body.get("results")
