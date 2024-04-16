@@ -16,6 +16,7 @@ from opentelemetry.trace import SpanKind, get_tracer
 from wrapt import wrap_function_wrapper
 
 from openllmtelemetry.instrumentation.bedrock.reusable_streaming_body import ReusableStreamingBody
+from openllmtelemetry.secure import WhyLabsSecureApi  # noqa: E402
 from openllmtelemetry.version import __version__
 
 LOGGER = logging.getLogger(__name__)
@@ -39,9 +40,9 @@ def _set_span_attribute(span, name, value):
 def _with_tracer_wrapper(func):
     """Helper for providing tracer for wrapper functions."""
 
-    def _with_tracer(tracer, to_wrap):
+    def _with_tracer(tracer, secure_api: WhyLabsSecureApi, to_wrap):
         def wrapper(wrapped, instance, args, kwargs):
-            return func(tracer, to_wrap, wrapped, instance, args, kwargs)
+            return func(tracer, secure_api, to_wrap, wrapped, instance, args, kwargs)
 
         return wrapper
 
@@ -49,21 +50,21 @@ def _with_tracer_wrapper(func):
 
 
 @_with_tracer_wrapper
-def _wrap(tracer, to_wrap, wrapped, instance, args, kwargs):
+def _wrap(tracer, secure_api: WhyLabsSecureApi, to_wrap, wrapped, instance, args, kwargs):
     """Instruments and calls every function defined in TO_WRAP."""
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
     if kwargs.get("service_name") == "bedrock-runtime":
         client = wrapped(*args, **kwargs)
-        client.invoke_model = _instrumented_model_invoke(client.invoke_model, tracer)
+        client.invoke_model = _instrumented_model_invoke(client.invoke_model, tracer, secure_api)
 
         return client
 
     return wrapped(*args, **kwargs)
 
 
-def _instrumented_model_invoke(fn, tracer):
+def _instrumented_model_invoke(fn, tracer, secure_api: WhyLabsSecureApi):
     @wraps(fn)
     def with_instrumentation(*args, **kwargs):
         with tracer.start_as_current_span("bedrock.completion", kind=SpanKind.CLIENT) as span:
@@ -71,20 +72,22 @@ def _instrumented_model_invoke(fn, tracer):
             (vendor, model) = kwargs.get("modelId").split(".")
             is_titan_text = model.startswith("titan-text-")
 
+            prompt = None
             if vendor == "cohere":
-                print("request txt: ", request_body.get("prompt"))
+                prompt = request_body.get("prompt")
             elif vendor == "anthropic":
-                print("request txt: ", request_body.get("inputText"))
+                prompt = request_body.get("inputText")
             elif vendor == "ai21":
-                print("request txt: ", request_body.get("prompt"))
+                prompt = request_body.get("prompt")
             elif vendor == "meta":
-                print("request txt: ", request_body.get("prompt"))
+                prompt = request_body.get("prompt")
             elif vendor == "amazon":
                 if is_titan_text:
-                    print("request txt: ", request_body["inputText"])
+                    prompt = request_body["inputText"]
                 else:
                     LOGGER.debug("LLM not suppported yet")
                     print("not supported yet")
+            print("Prompt: " + prompt)
 
             # TODO: check for input text first
             response = fn(*args, **kwargs)
@@ -100,7 +103,6 @@ def _instrumented_model_invoke(fn, tracer):
             elif vendor == "anthropic":
                 _set_anthropic_span_attributes(span, request_body, response_body)
             elif vendor == "ai21":
-                print("a21")
                 _set_ai21_span_attributes(span, request_body, response_body)
             elif vendor == "meta":
                 _set_llama_span_attributes(span, request_body, response_body)
@@ -170,6 +172,9 @@ def _set_llama_span_attributes(span, request_body, response_body):
 class BedrockInstrumentor(BaseInstrumentor):
     """An instrumentor for Bedrock's client library."""
 
+    def __init__(self, secure_api: WhyLabsSecureApi):
+        self._secure_api = secure_api
+
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
 
@@ -184,7 +189,7 @@ class BedrockInstrumentor(BaseInstrumentor):
             wrap_function_wrapper(
                 wrap_package,
                 f"{wrap_object}.{wrap_method}",
-                _wrap(tracer, wrapped_method),
+                _wrap(tracer, self._secure_api, wrapped_method),
             )
 
     def _uninstrument(self, **kwargs):

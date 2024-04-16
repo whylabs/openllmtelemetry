@@ -67,7 +67,7 @@ def instrument(
     if whylabs_guard_api_key is None:
         whylabs_guard_api_key = os.environ.get("WHYLABS_GUARD_API_KEY")
 
-    guard = WhyLabsSecureApi(
+    secure_api = WhyLabsSecureApi(
         guard_endpoint=whylabs_guard_endpoint,
         guard_api_key=whylabs_guard_api_key,
         dataset_id=dataset_id,
@@ -94,4 +94,4 @@ def instrument(
 
     trace.set_tracer_provider(tracer_provider)
 
-    init_instrumentors(tracer, guard)
+    init_instrumentors(tracer, secure_api)

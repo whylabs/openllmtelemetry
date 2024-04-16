@@ -17,10 +17,10 @@ LOGGER = logging.getLogger(__name__)
 class OpenAIInstrumentor(BaseInstrumentor):
     """An instrumentor for OpenAI's client library."""
 
-    def __init__(self, guard: WhyLabsSecureApi):
-        LOGGER.info("Instrumenting Bedrock")
+    def __init__(self, secure_api: WhyLabsSecureApi):
+        LOGGER.info("Instrumenting OpenAI")
 
-        self._guard = guard
+        self._guard = secure_api
         if is_openai_v1():
             self._instrumentor = OpenAIV1Instrumentor(self._guard)
         else:
