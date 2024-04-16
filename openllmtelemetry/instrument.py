@@ -26,12 +26,13 @@ class DebugOTLPSpanExporter(OTLPSpanExporter):
                 LOGGER.debug(f"Exporting span: {span.name}")
         try:
             response = super().export(spans)
+            if debug_enabled:
+                for span in spans:
+                    LOGGER.debug(f"Done exporting spans for: {span.to_json()}")
+            return response
         except Exception as e:
             LOGGER.error(f"Error exporting spans: {e}")
-        if debug_enabled:
-            for span in spans:
-                LOGGER.warning(f"Done exporting spans for: {span.to_json()}")
-        return response
+            raise e
 
 
 def instrument(
