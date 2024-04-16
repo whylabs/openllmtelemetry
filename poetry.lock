@@ -2292,10 +2292,9 @@ docs = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.link
 testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-ignore-flaky", "pytest-mypy", "pytest-ruff (>=0.2.1)"]
 
 [extras]
-langkit = []
 openai = ["openai"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "2249da648614e2e0ab208342c05c63e9a914272d1a640a271c9b7c82883f0b35"
+content-hash = "c5fbd623ce02415ddc0c68c485f42c99b4a0238afea0391cd4b0938b61a7c410"
