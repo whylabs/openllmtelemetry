@@ -17,7 +17,7 @@ format-fix: ## Fix formatting issues
 fix: lint-fix format-fix ## Fix all linting and formatting issues
 
 install: ## Install dependencies with poetry
-	poetry install
+	poetry install -E "openai"
 
 test: ## Run unit tests
 	poetry run pytest -vvv -s -o log_level=INFO -o log_cli=true tests/
@@ -27,6 +27,9 @@ integ: ## Run integration tests
 
 dist: ## Build the distribution
 	poetry build
+
+clean: ## remove build artifacts
+	rm -rf ./dist/*
 
 bump-patch: ## Bump the patch version (_._.X) everywhere it appears in the project
 	@$(call i, Bumping the patch number)
