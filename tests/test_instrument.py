@@ -14,7 +14,7 @@ def test_instrument():
     os.environ["WHYLABS_DEFAULT_ORG_ID"] = "fake-string-for-testing-org-id"
     os.environ["WHYLABS_API_KEY"] = "fake-string-for-testing-key"
     os.environ["WHYLABS_DEFAULT_DATASET_ID"] = "fake-string-for-testing-model-id"
-    openllmtelemetry.instrument("my-test-application")
+    openllmtelemetry.instrument("my-test-application", whylabs_guard_endpoint="fake", whylabs_guard_api_key="not-a-key")
     os.environ.pop("WHYLABS_DEFAULT_ORG_ID", None)
     os.environ.pop("WHYLABS_API_KEY", None)
     os.environ.pop("WHYLABS_DEFAULT_DATASET_ID", None)

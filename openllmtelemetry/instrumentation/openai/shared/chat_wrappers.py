@@ -5,7 +5,6 @@ from opentelemetry import context as context_api
 
 # noinspection PyProtectedMember
 from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.semconv.ai import LLMRequestTypeValues, SpanAttributes
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace.status import Status, StatusCode
 
@@ -20,6 +19,7 @@ from openllmtelemetry.instrumentation.openai.shared import (
 )
 from openllmtelemetry.instrumentation.openai.utils import _with_tracer_wrapper, is_openai_v1
 from openllmtelemetry.secure import WhyLabsSecureApi  # noqa: E402
+from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
 
 SPAN_NAME = "openai.chat"
 LLM_REQUEST_TYPE = LLMRequestTypeValues.CHAT

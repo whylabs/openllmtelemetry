@@ -2,7 +2,6 @@ import logging
 
 from opentelemetry import context as context_api
 from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.semconv.ai import LLMRequestTypeValues, SpanAttributes
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace.status import Status, StatusCode
 
@@ -21,6 +20,7 @@ from openllmtelemetry.instrumentation.openai.utils import (
     start_as_current_span_async,
 )
 from openllmtelemetry.secure import WhyLabsSecureApi
+from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
 
 SPAN_NAME = "openai.completion"
 LLM_REQUEST_TYPE = LLMRequestTypeValues.COMPLETION

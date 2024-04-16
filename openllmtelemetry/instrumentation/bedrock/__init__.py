@@ -11,12 +11,12 @@ from opentelemetry.instrumentation.utils import (
     _SUPPRESS_INSTRUMENTATION_KEY,
     unwrap,
 )
-from opentelemetry.semconv.ai import LLMRequestTypeValues, SpanAttributes
 from opentelemetry.trace import SpanKind, get_tracer
 from wrapt import wrap_function_wrapper
 
 from openllmtelemetry.instrumentation.bedrock.reusable_streaming_body import ReusableStreamingBody
 from openllmtelemetry.secure import WhyLabsSecureApi  # noqa: E402
+from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
 from openllmtelemetry.version import __version__
 
 LOGGER = logging.getLogger(__name__)
