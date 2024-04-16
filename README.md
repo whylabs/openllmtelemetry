@@ -20,7 +20,9 @@ pip install openllmtelemetry
 
 Here's a basic example of how to use **OpenLLMTelemetry** in your project:
 
-First you need to setup a few environment variables to specify where you want your LLM telemetry to be sent, and make sure you also have any API keys set for interacting with your LLM and for sending the telemetry to [WhyLabs](https://hub.whylabsapp.com/signup)
+First you need to setup a few environment variables to specify where you want your LLM telemetry to be sent, and make sure you also have any API keys set for interacting with your LLM and for sending the telemetry to [WhyLabs](https://whylabs.ai/free?utm_source=openllmtelemetry-Github&utm_medium=openllmtelemetry-readme&utm_campaign=WhyLabs_Secure)
+
+
 
 ```python
 import os
@@ -97,3 +99,6 @@ Contributions are welcome! For major changes, please open an issue first to disc
 ## Contact 📧
 
 For support or any questions, feel free to contact us at support@whylabs.ai.
+
+## Documentation
+More documentation can be found here on WhyLabs site: https://whylabs.ai/docs/
