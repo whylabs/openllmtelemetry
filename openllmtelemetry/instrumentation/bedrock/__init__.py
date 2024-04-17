@@ -128,10 +128,9 @@ def _set_amazon_titan_span_attributes(span, request_body, response_body):
         if should_send_prompts():
             _set_span_attribute(span, f"{SpanAttributes.LLM_PROMPTS}.0.user", request_body.get("inputText"))
             contents = response_body.get("results")
-            _set_span_attribute(span, f"{SpanAttributes.LLM_COMPLETIONS}.0.content", contents[0].get('outputText') if contents else "")
+            _set_span_attribute(span, f"{SpanAttributes.LLM_COMPLETIONS}.0.content", contents[0].get("outputText") if contents else "")
     except Exception as ex:  # pylint: disable=broad-except
         LOGGER.warning(f"Failed to set input attributes for openai span, error:{str(ex)}")
-
 
 
 def _set_cohere_span_attributes(span, request_body, response_body):

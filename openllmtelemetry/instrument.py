@@ -68,8 +68,10 @@ def instrument(
     guard_api_key = whylabs_guard_api_key or os.environ.get("WHYLABS_GUARD_API_KEY")
 
     if guard_endpoint is None or guard_api_key is None:
-        LOGGER.warning("Missing env variables for WHYLABS_GUARD_ENDPOINT, LOGGER or parameters "
-                       "for `whylabs_guard_endpoint` and `whylabs_guard_api_key`, falling back to basic LLM tracing only")
+        LOGGER.warning(
+            "Missing env variables for WHYLABS_GUARD_ENDPOINT, LOGGER or parameters "
+            "for `whylabs_guard_endpoint` and `whylabs_guard_api_key`, falling back to basic LLM tracing only"
+        )
         secure_api = None
     else:
         secure_api = WhyLabsSecureApi(
