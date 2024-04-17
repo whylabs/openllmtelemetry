@@ -17,7 +17,7 @@ format-fix: ## Fix formatting issues
 fix: lint-fix format-fix ## Fix all linting and formatting issues
 
 install: ## Install dependencies with poetry
-	poetry install -E "openai"
+	poetry install -E "openai" -E "bedrock"
 
 test: ## Run unit tests
 	poetry run pytest -vvv -s -o log_level=INFO -o log_cli=true tests/

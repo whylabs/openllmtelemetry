@@ -1,4 +1,4 @@
-from typing import Collection
+from typing import Collection, Optional
 
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 from opentelemetry.trace import get_tracer
@@ -23,7 +23,7 @@ _instruments = ("openai >= 0.27.0", "openai < 1.0.0")
 
 
 class OpenAIV0Instrumentor(BaseInstrumentor):
-    def __init__(self, guard: WhyLabsSecureApi):
+    def __init__(self, guard: Optional[WhyLabsSecureApi]):
         self._guard = guard
 
     def instrumentation_dependencies(self) -> Collection[str]:
