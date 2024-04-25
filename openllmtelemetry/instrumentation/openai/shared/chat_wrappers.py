@@ -70,7 +70,7 @@ async def achat_wrapper(tracer, guard: WhyLabsSecureApi, wrapped, instance, args
         kind=SpanKind.CLIENT,
         attributes={SpanAttributes.LLM_REQUEST_TYPE: LLM_REQUEST_TYPE.value, "span.type": "completion"},
     )
-    (prompt, prompt_metrics) = _handle_request(guard, span, kwargs)
+    prompt, prompt_metrics = _handle_request(guard, span, kwargs)
     LOGGER.debug("Prompt metrics: ", prompt_metrics)
     response = await wrapped(*args, **kwargs)
     LOGGER.debug(f"Async type response: {type(response)}")
