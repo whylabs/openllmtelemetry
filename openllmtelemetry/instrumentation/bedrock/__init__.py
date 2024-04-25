@@ -48,7 +48,7 @@ def _with_tracer_wrapper(func):
 
     return _with_tracer
 
-def _handle_request(secure_api: Optional[WhyLabsSecureApi], span, prompt: str):
+def _handle_request(secure_api: Optional[WhyLabsSecureApi], prompt: str, span):
     prompt_metrics = None
     if prompt is not None:
         prompt_metrics = secure_api.eval_prompt(prompt) if secure_api is not None else None
@@ -125,7 +125,7 @@ def _instrumented_model_invoke(fn, tracer, secure_api: WhyLabsSecureApi):
                     LOGGER.debug("LLM not suppported yet")
             LOGGER.debug(f"extracted prompt: {prompt}")
             # TODO: check for input text first
-            prompt = _handle_request(secure_api, span, prompt)
+            prompt = _handle_request(secure_api, prompt, span)
             response = fn(*args, **kwargs)
 
             response["body"] = ReusableStreamingBody(response["body"]._raw_stream, response["body"]._content_length)
