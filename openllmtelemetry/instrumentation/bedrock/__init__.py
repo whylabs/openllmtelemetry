@@ -48,7 +48,7 @@ def _with_tracer_wrapper(func):
 
     return _with_tracer
 
-def _handle_request(secure_api: Optional[WhyLabsSecureApi], prompt: str, span):
+def _handle_request(secure_api: Optional[GuardrailsApi], prompt: str, span):
     prompt_metrics = None
     if prompt is not None:
         prompt_metrics = secure_api.eval_prompt(prompt) if secure_api is not None else None
@@ -62,7 +62,7 @@ def _handle_request(secure_api: Optional[WhyLabsSecureApi], prompt: str, span):
     return prompt
 
 
-def _handle_response(secure_api: WhyLabsSecureApi, prompt, response, span):
+def _handle_response(secure_api: Optional[GuardrailsApi], prompt, response, span):
     response_text: Optional[str] = None
     response_metrics = None
     results = response.get("results")
