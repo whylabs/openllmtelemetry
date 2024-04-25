@@ -18,7 +18,7 @@ from openllmtelemetry.instrumentation.openai.shared import (
     should_send_prompts,
 )
 from openllmtelemetry.instrumentation.openai.utils import _with_tracer_wrapper, is_openai_v1
-from openllmtelemetry.secure import WhyLabsSecureApi  # noqa: E402
+from openllmtelemetry.secure import GuardrailsApi  # noqa: E402
 from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
 
 SPAN_NAME = "openai.chat"
@@ -28,7 +28,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 @_with_tracer_wrapper
-def chat_wrapper(tracer, secure_api: WhyLabsSecureApi, wrapped, instance, args, kwargs):
+def chat_wrapper(tracer, secure_api: GuardrailsApi, wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
@@ -61,7 +61,7 @@ def chat_wrapper(tracer, secure_api: WhyLabsSecureApi, wrapped, instance, args, 
 
 
 @_with_tracer_wrapper
-async def achat_wrapper(tracer, guard: WhyLabsSecureApi, wrapped, instance, args, kwargs):
+async def achat_wrapper(tracer, guard: GuardrailsApi, wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
@@ -85,7 +85,7 @@ async def achat_wrapper(tracer, guard: WhyLabsSecureApi, wrapped, instance, args
     return response
 
 
-def _handle_request(secure_api: WhyLabsSecureApi, span, kwargs):
+def _handle_request(secure_api: GuardrailsApi, span, kwargs):
     _set_request_attributes(span, kwargs)
     stream = kwargs.get("stream")
     LOGGER.debug("Stream: %s. ", stream)
@@ -102,7 +102,7 @@ def _handle_request(secure_api: WhyLabsSecureApi, span, kwargs):
     return prompt, prompt_metrics
 
 
-def _handle_response(secure_api: WhyLabsSecureApi, prompt, response, span):
+def _handle_response(secure_api: GuardrailsApi, prompt, response, span):
     if is_openai_v1():
         response_dict = model_as_dict(response)
     else:
