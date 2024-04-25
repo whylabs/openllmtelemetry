@@ -17,13 +17,13 @@ from openllmtelemetry.instrumentation.openai.shared.embeddings_wrappers import (
     embeddings_wrapper,
 )
 from openllmtelemetry.instrumentation.openai.version import __version__
-from openllmtelemetry.secure import WhyLabsSecureApi
+from openllmtelemetry.secure import GuardrailsApi
 
 _instruments = ("openai >= 1.0.0",)
 
 
 class OpenAIV1Instrumentor(BaseInstrumentor):
-    def __init__(self, guard: WhyLabsSecureApi):
+    def __init__(self, guard: GuardrailsApi):
         self._secure_api = guard
 
     def instrumentation_dependencies(self) -> Collection[str]:

@@ -20,7 +20,7 @@ from openllmtelemetry.instrumentation.openai.utils import (
     is_openai_v1,
     start_as_current_span_async,
 )
-from openllmtelemetry.secure import WhyLabsSecureApi
+from openllmtelemetry.secure import GuardrailsApi
 from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
 
 SPAN_NAME = "openai.completion"
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 @_with_tracer_wrapper
-def completion_wrapper(tracer, secure_api: Optional[WhyLabsSecureApi], wrapped, instance, args, kwargs):
+def completion_wrapper(tracer, secure_api: Optional[GuardrailsApi], wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
@@ -55,7 +55,7 @@ def completion_wrapper(tracer, secure_api: Optional[WhyLabsSecureApi], wrapped, 
 
 
 @_with_tracer_wrapper
-async def acompletion_wrapper(tracer, guard: Optional[WhyLabsSecureApi], wrapped, instance, args, kwargs):
+async def acompletion_wrapper(tracer, guard: Optional[GuardrailsApi], wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
