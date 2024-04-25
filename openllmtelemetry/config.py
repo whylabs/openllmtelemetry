@@ -1,7 +1,7 @@
 import configparser
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Optional
 
@@ -106,6 +106,11 @@ class GuardrailConfig(object):
             }
         with open(config_path, "w") as configfile:
             config.write(configfile)
+
+    def __repr__(self):
+        # hide the api_key from output
+        field_strs = [f"{field.name}='***key***'" if 'key' in field.name else f"{field.name}={getattr(self, field.name)}" for field in fields(self)]
+        return f"{self.__class__.__name__}({', '.join(field_strs)})"
 
     @classmethod
     def read(cls, config_path: str) -> "GuardrailConfig":

@@ -48,6 +48,43 @@ def _with_tracer_wrapper(func):
 
     return _with_tracer
 
+def _handle_request(secure_api: Optional[GuardrailsApi], prompt: str, span):
+    prompt_metrics = None
+    if prompt is not None:
+        prompt_metrics = secure_api.eval_prompt(prompt) if secure_api is not None else None
+    if prompt_metrics and span is not None:
+            LOGGER.debug(prompt_metrics)
+            metrics = prompt_metrics.metrics[0]
+            for k in metrics.additional_keys:
+                if metrics.additional_properties[k] is not None:
+                    metric_value = metrics.additional_properties[k]
+                    span.set_attribute(f"langkit.metrics.{k}", metric_value)
+    return prompt
+
+
+def _handle_response(secure_api: Optional[GuardrailsApi], prompt, response, span):
+    response_text: Optional[str] = None
+    response_metrics = None
+    results = response.get("results")
+    if results:
+        response_message = results[0]
+        if response_message:
+            response_text = response_message.get("outputText")
+    if response_text is not None:
+        response_metrics = secure_api.eval_response(prompt=prompt, response=response_text) if secure_api is not None else None
+    if response_metrics:
+        LOGGER.debug(response_metrics)
+        metrics = response_metrics.metrics[0]
+
+        for k in metrics.additional_keys:
+            if metrics.additional_properties[k] is not None:
+                metric_value = metrics.additional_properties[k]
+                span.set_attribute(f"langkit.metrics.{k}", metric_value)
+    else:
+        LOGGER.debug("response metrics is none, skipping")
+
+    return response
+
 
 @_with_tracer_wrapper
 def _wrap(tracer, secure_api: GuardrailsApi, to_wrap, wrapped, instance, args, kwargs):
@@ -60,8 +97,8 @@ def _wrap(tracer, secure_api: GuardrailsApi, to_wrap, wrapped, instance, args, k
         client.invoke_model = _instrumented_model_invoke(client.invoke_model, tracer, secure_api)
 
         return client
-
-    return wrapped(*args, **kwargs)
+    response = wrapped(*args, **kwargs)
+    return response
 
 
 def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
@@ -88,10 +125,13 @@ def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
                     LOGGER.debug("LLM not suppported yet")
             LOGGER.debug(f"extracted prompt: {prompt}")
             # TODO: check for input text first
+            prompt = _handle_request(secure_api, prompt, span)
             response = fn(*args, **kwargs)
-            # noinspection PyProtectedMember
+
             response["body"] = ReusableStreamingBody(response["body"]._raw_stream, response["body"]._content_length)
             response_body = json.loads(response.get("body").read())
+            response_body = _handle_response(secure_api, prompt, response_body, span)
+            # noinspection PyProtectedMember
 
             _set_span_attribute(span, SpanAttributes.LLM_VENDOR, vendor)
             _set_span_attribute(span, SpanAttributes.LLM_REQUEST_MODEL, model)
@@ -105,7 +145,6 @@ def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
             elif vendor == "meta":
                 _set_llama_span_attributes(span, request_body, response_body)
             elif vendor == "amazon":
-                print("Bedrock vendor")
                 _set_amazon_titan_span_attributes(span, request_body, response_body)
 
             return response
