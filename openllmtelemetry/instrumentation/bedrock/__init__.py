@@ -15,7 +15,7 @@ from opentelemetry.trace import SpanKind, get_tracer
 from wrapt import wrap_function_wrapper
 
 from openllmtelemetry.instrumentation.bedrock.reusable_streaming_body import ReusableStreamingBody
-from openllmtelemetry.secure import WhyLabsSecureApi  # noqa: E402
+from openllmtelemetry.secure import GuardrailsApi  # noqa: E402
 from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
 from openllmtelemetry.version import __version__
 
@@ -40,7 +40,7 @@ def _set_span_attribute(span, name, value):
 def _with_tracer_wrapper(func):
     """Helper for providing tracer for wrapper functions."""
 
-    def _with_tracer(tracer, secure_api: WhyLabsSecureApi, to_wrap):
+    def _with_tracer(tracer, secure_api: GuardrailsApi, to_wrap):
         def wrapper(wrapped, instance, args, kwargs):
             return func(tracer, secure_api, to_wrap, wrapped, instance, args, kwargs)
 
@@ -50,7 +50,7 @@ def _with_tracer_wrapper(func):
 
 
 @_with_tracer_wrapper
-def _wrap(tracer, secure_api: WhyLabsSecureApi, to_wrap, wrapped, instance, args, kwargs):
+def _wrap(tracer, secure_api: GuardrailsApi, to_wrap, wrapped, instance, args, kwargs):
     """Instruments and calls every function defined in TO_WRAP."""
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
@@ -64,7 +64,7 @@ def _wrap(tracer, secure_api: WhyLabsSecureApi, to_wrap, wrapped, instance, args
     return wrapped(*args, **kwargs)
 
 
-def _instrumented_model_invoke(fn, tracer, secure_api: WhyLabsSecureApi):
+def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
     @wraps(fn)
     def with_instrumentation(*args, **kwargs):
         with tracer.start_as_current_span("bedrock.completion", kind=SpanKind.CLIENT) as span:
@@ -186,7 +186,7 @@ def _set_llama_span_attributes(span, request_body, response_body):
 class BedrockInstrumentor(BaseInstrumentor):
     """An instrumentor for Bedrock's client library."""
 
-    def __init__(self, secure_api: Optional[WhyLabsSecureApi]):
+    def __init__(self, secure_api: Optional[GuardrailsApi]):
         self._secure_api = secure_api
 
     def instrumentation_dependencies(self) -> Collection[str]:

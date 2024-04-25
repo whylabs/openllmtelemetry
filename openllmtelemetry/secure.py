@@ -9,11 +9,11 @@ from whylogs_container_client.models import EvaluationResult, HTTPValidationErro
 LOGGER = logging.getLogger(__name__)
 
 
-class WhyLabsSecureApi(object):
+class GuardrailsApi(object):
     def __init__(
         self,
-        guard_endpoint: str,
-        guard_api_key: str,
+        guardrails_endpoint: str,
+        guardrails_api_key: str,
         dataset_id: str,
         timeout: Optional[float] = 1.0,
         auth_header_name: str = "X-API-Key",
@@ -21,17 +21,17 @@ class WhyLabsSecureApi(object):
         """
         Construct a new WhyLabs Guard client
 
-        :param guard_endpoint: the endpoint for the guard client
-        :param guard_api_key: the API key to authorize with the endpoint
+        :param guardrails_endpoint: the endpoint for the guard client
+        :param guardrails_api_key: the API key to authorize with the endpoint
         :param dataset_id: the default dataset ID
         :param timeout: timeout in second
         :param auth_header_name: the name of the auth header. Shouldn't be set normally
         """
-        self._api_key = guard_api_key
+        self._api_key = guardrails_api_key
         self._dataset_id = dataset_id
         self._client = AuthenticatedClient(
-            base_url=guard_endpoint,  # type: ignore
-            token=guard_api_key,  #
+            base_url=guardrails_endpoint,  # type: ignore
+            token=guardrails_api_key,  #
             prefix="",  #
             auth_header_name=auth_header_name,  # type: ignore
             timeout=Timeout(timeout, read=timeout),  # type: ignore
