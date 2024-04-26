@@ -23,6 +23,7 @@ from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 from opentelemetry.trace import get_tracer
 from wrapt import wrap_function_wrapper
 
+from openllmtelemetry.guardrails import GuardrailsApi
 from openllmtelemetry.instrumentation.openai.shared.chat_wrappers import (
     achat_wrapper,
     chat_wrapper,
@@ -36,7 +37,6 @@ from openllmtelemetry.instrumentation.openai.shared.embeddings_wrappers import (
     embeddings_wrapper,
 )
 from openllmtelemetry.instrumentation.openai.version import __version__
-from openllmtelemetry.secure import GuardrailsApi
 
 _instruments = ("openai >= 1.0.0",)
 

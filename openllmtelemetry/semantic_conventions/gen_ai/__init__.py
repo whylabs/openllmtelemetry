@@ -41,6 +41,7 @@ class SpanAttributes:
     LLM_COMPLETIONS = "llm.completions"
     LLM_CHAT_STOP_SEQUENCES = "llm.chat.stop_sequences"
     LLM_REQUEST_FUNCTIONS = "llm.request.functions"
+    LLM_STREAMING = "llm.streaming"
 
     # Vector DB
     VECTOR_DB_VENDOR = "vector_db.vendor"

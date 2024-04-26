@@ -90,7 +90,7 @@ def _handle_response(response, span):
     else:
         response_dict = response
 
-    _set_response_attributes(span, response_dict)
+    _set_response_attributes(response_dict, span)
 
 
 def _set_prompts(span, prompt):

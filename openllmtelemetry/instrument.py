@@ -20,6 +20,7 @@ def instrument(
     tracer_name: Optional[str] = None,
     service_name: Optional[str] = None,
     disable_batching: bool = False,
+    debug: bool = False,
 ) -> Tracer:
     config = load_config()
     dataset_id = load_dataset_id(dataset_id)
@@ -45,7 +46,7 @@ def instrument(
     )
 
     tracer_provider = TracerProvider(resource=resource)
-    config.config_tracer_provider(tracer_provider, dataset_id=dataset_id, disable_batching=disable_batching)
+    config.config_tracer_provider(tracer_provider, dataset_id=dataset_id, disable_batching=disable_batching, debug=debug)
 
     tracer = trace.get_tracer(tracer_name)
     trace.set_tracer_provider(tracer_provider)
