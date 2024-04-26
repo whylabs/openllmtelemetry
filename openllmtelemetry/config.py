@@ -2,6 +2,7 @@ import configparser
 import logging
 import os
 from dataclasses import dataclass, fields
+from getpass import getpass
 from pathlib import Path
 from typing import Optional
 
@@ -9,7 +10,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
 
-from openllmtelemetry.secure import GuardrailsApi
+from openllmtelemetry.guardrails import GuardrailsApi
 from openllmtelemetry.span_exporter import DebugOTLSpanExporter
 
 CFG_API_KEY = "api_key"
@@ -70,9 +71,10 @@ class GuardrailConfig(object):
         tracer_provider: TracerProvider,
         dataset_id: str,
         disable_batching: bool = False,
+        debug: bool = False,
     ):
         if self.whylabs_traces_endpoint and self.whylabs_api_key:
-            debug_enabled = os.environ.get("WHYLABS_DEBUG_TRACE")
+            debug_enabled = os.environ.get("WHYLABS_DEBUG_TRACE") or debug
             whylabs_api_key_header = {"X-API-Key": self.whylabs_api_key, "X-WHYLABS-RESOURCE": dataset_id}
             # TODO: support other kinds of exporters
             if debug_enabled:
@@ -177,7 +179,7 @@ def _interactive_config(config: GuardrailConfig) -> GuardrailConfig:
     guardrails_endpoint = config.guardrails_endpoint
     guardrails_api_key = config.guardrails_api_key
     if whylabs_api_key is None:
-        whylabs_api_key = input("Set WhyLabs API Key: ").strip()
+        whylabs_api_key = getpass("Set WhyLabs API Key: ").strip()
         print("Using WhyLabs API key with ID: ", whylabs_api_key[:10])
     if guardrails_endpoint is None:
         guardrails_endpoint = input("Set GuardRails endpoint (leave blank to skip guardrail): ").strip()
@@ -186,7 +188,7 @@ def _interactive_config(config: GuardrailConfig) -> GuardrailConfig:
         if guardrails_endpoint is None:
             print("GuardRails endpoint is not set. Only tracing is enabled.")
     if guardrails_endpoint is not None and guardrails_api_key is None:
-        guardrails_api_key = input("Set GuardRails API Key: ").strip()
+        guardrails_api_key = getpass("Set GuardRails API Key: ").strip()
         if len(guardrails_api_key) > 15:
             print("Using GuardRails API key with prefix: ", guardrails_api_key[:6])
 

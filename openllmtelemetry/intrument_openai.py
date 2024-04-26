@@ -4,7 +4,7 @@ from typing import Optional
 
 from opentelemetry.trace import Tracer
 
-from openllmtelemetry.secure import GuardrailsApi
+from openllmtelemetry.guardrails import GuardrailsApi
 
 LOGGER = logging.getLogger(__name__)
 

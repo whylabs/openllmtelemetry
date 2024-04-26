@@ -22,9 +22,10 @@ from typing import Optional
 
 from opentelemetry import context as context_api
 from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import SpanKind
 from opentelemetry.trace.status import Status, StatusCode
 
+from openllmtelemetry.guardrails import GuardrailsApi
+from openllmtelemetry.guardrails.handlers import async_wrapper, sync_wrapper
 from openllmtelemetry.instrumentation.openai.shared import (
     _set_functions_attributes,
     _set_request_attributes,
@@ -37,9 +38,7 @@ from openllmtelemetry.instrumentation.openai.shared import (
 from openllmtelemetry.instrumentation.openai.utils import (
     _with_tracer_wrapper,
     is_openai_v1,
-    start_as_current_span_async,
 )
-from openllmtelemetry.secure import GuardrailsApi
 from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
 
 SPAN_NAME = "openai.completion"
@@ -48,47 +47,82 @@ LLM_REQUEST_TYPE = LLMRequestTypeValues.COMPLETION
 logger = logging.getLogger(__name__)
 
 
+def create_prompt_provider(kwargs):
+    def prompt_provider():
+        return kwargs.get("prompt")
+
+    return prompt_provider
+
+
 @_with_tracer_wrapper
-def completion_wrapper(tracer, secure_api: Optional[GuardrailsApi], wrapped, instance, args, kwargs):
+def completion_wrapper(tracer, guardrails_api: Optional[GuardrailsApi], wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
-    # span needs to be opened and closed manually because the response is a generator
-    span = tracer.start_span(
-        SPAN_NAME,
-        kind=SpanKind.CLIENT,
-        attributes={SpanAttributes.LLM_REQUEST_TYPE: LLM_REQUEST_TYPE.value},
+    prompt_provider = create_prompt_provider(kwargs)
+
+    def call_llm(span):
+        r = wrapped(*args, **kwargs)
+        if not kwargs.get("stream"):
+            _handle_response(r, span)
+            if is_openai_v1():
+                response_dict = model_as_dict(r)
+            else:
+                response_dict = r
+
+            _set_response_attributes(response_dict, span)
+        return r
+
+    def prompt_attributes_setter(span):
+        _set_request_attributes(span, kwargs)
+
+    def response_extractor(r):
+        if is_openai_v1():
+            response_dict = model_as_dict(r)
+        else:
+            response_dict = r
+        return response_dict["choices"][0]["text"]
+
+    return sync_wrapper(
+        tracer, guardrails_api, prompt_provider, call_llm, response_extractor, prompt_attributes_setter, LLMRequestTypeValues.COMPLETION
     )
 
-    _handle_request(span, kwargs)
-    response = wrapped(*args, **kwargs)
-
-    if is_streaming_response(response):
-        # span will be closed after the generator is done
-        return _build_from_streaming_response(span, response)
-    else:
-        _handle_response(response, span)
-
-    span.end()
-    return response
-
 
 @_with_tracer_wrapper
-async def acompletion_wrapper(tracer, guard: Optional[GuardrailsApi], wrapped, instance, args, kwargs):
+async def acompletion_wrapper(tracer, guardrails_api: Optional[GuardrailsApi], wrapped, instance, args, kwargs):
     if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
         return wrapped(*args, **kwargs)
 
-    async with start_as_current_span_async(
-        tracer=tracer,
-        name=SPAN_NAME,
-        kind=SpanKind.CLIENT,
-        attributes={SpanAttributes.LLM_REQUEST_TYPE: LLM_REQUEST_TYPE.value},
-    ) as span:
-        _handle_request(span, kwargs)
-        response = await wrapped(*args, **kwargs)
-        _handle_response(response, span)
+    prompt_provider = create_prompt_provider(kwargs)
 
-        return response
+    async def call_llm(span):
+        r = await wrapped(*args, **kwargs)
+        if not kwargs.get("stream"):
+            _handle_response(r, span)
+        return r
+
+    def prompt_attributes_setter(span):
+        _set_request_attributes(span, kwargs)
+
+    def response_extractor(r):
+        if is_openai_v1():
+            response_dict = model_as_dict(r)
+        else:
+            response_dict = r
+        return response_dict["choices"][0]["text"]
+
+    return async_wrapper(
+        tracer,
+        guardrails_api,  # guardrails_client,
+        prompt_provider,
+        call_llm,
+        response_extractor,
+        kwargs,
+        prompt_attributes_setter,
+        _build_from_streaming_response,
+        is_streaming_response,
+        LLMRequestTypeValues.COMPLETION,
+    )
 
 
 def _handle_request(span, kwargs):
@@ -104,7 +138,7 @@ def _handle_response(response, span):
     else:
         response_dict = response
 
-    _set_response_attributes(span, response_dict)
+    _set_response_attributes(response_dict, span)
 
     if should_send_prompts():
         _set_completions(span, response_dict.get("choices"))
@@ -157,7 +191,7 @@ def _build_from_streaming_response(span, response):
 
         yield item_to_yield
 
-    _set_response_attributes(span, complete_response)
+    _set_response_attributes(complete_response, span)
 
     if should_send_prompts():
         _set_completions(span, complete_response.get("choices"))

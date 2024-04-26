@@ -19,16 +19,18 @@ Original source: openllmetry: https://github.com/traceloop/openllmetry
 """
 import json
 import logging
+from typing import Optional
 
 from opentelemetry import context as context_api
 
 # noinspection PyProtectedMember
 from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
-from opentelemetry.trace import SpanKind
 from opentelemetry.trace.status import Status, StatusCode
+from whylogs_container_client.models import EvaluationResult
 
+from openllmtelemetry.guardrails import GuardrailsApi  # noqa: E402
+from openllmtelemetry.guardrails.handlers import async_wrapper, sync_wrapper
 from openllmtelemetry.instrumentation.openai.shared import (
-    _set_functions_attributes,
     _set_request_attributes,
     _set_response_attributes,
     _set_span_attribute,
@@ -37,8 +39,9 @@ from openllmtelemetry.instrumentation.openai.shared import (
     should_send_prompts,
 )
 from openllmtelemetry.instrumentation.openai.utils import _with_tracer_wrapper, is_openai_v1
-from openllmtelemetry.secure import GuardrailsApi  # noqa: E402
 from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
+
+SPAN_TYPE = "span.type"
 
 SPAN_NAME = "openai.chat"
 LLM_REQUEST_TYPE = LLMRequestTypeValues.CHAT
@@ -46,102 +49,155 @@ LLM_REQUEST_TYPE = LLMRequestTypeValues.CHAT
 LOGGER = logging.getLogger(__name__)
 
 
-@_with_tracer_wrapper
-def chat_wrapper(tracer, secure_api: GuardrailsApi, wrapped, instance, args, kwargs):
-    if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-        return wrapped(*args, **kwargs)
+def create_prompt_provider(kwargs):
+    def prompt_provider():
+        messages = kwargs.get("messages")
+        user_messages = [m["content"] for m in messages if m["role"] == "user"]
+        prompt = user_messages[-1]
+        return prompt
 
-    # span needs to be opened and closed manually because the response is a generator
-    span = tracer.start_span(
-        SPAN_NAME,
-        kind=SpanKind.CLIENT,
-        attributes={SpanAttributes.LLM_REQUEST_TYPE: LLM_REQUEST_TYPE.value, "span.type": "completion"},
-    )
-
-    (prompt, prompt_metrics) = _handle_request(secure_api, span, kwargs)
-    if prompt_metrics:
-        LOGGER.debug(prompt_metrics)
-        metrics = prompt_metrics.metrics[0]
-
-        for k in metrics.additional_keys:
-            if metrics.additional_properties[k] is not None:
-                span.set_attribute(f"langkit.metrics.{k}", metrics.additional_properties[k])
-
-    response = wrapped(*args, **kwargs)
-
-    if is_streaming_response(response):
-        # span will be closed after the generator is done
-        return _build_from_streaming_response(span, response)
-
-    _handle_response(secure_api, prompt, response, span)
-    span.end()
-
-    return response
+    return prompt_provider
 
 
-@_with_tracer_wrapper
-async def achat_wrapper(tracer, guard: GuardrailsApi, wrapped, instance, args, kwargs):
-    if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
-        return wrapped(*args, **kwargs)
-
-    span = tracer.start_span(
-        SPAN_NAME,
-        kind=SpanKind.CLIENT,
-        attributes={SpanAttributes.LLM_REQUEST_TYPE: LLM_REQUEST_TYPE.value, "span.type": "completion"},
-    )
-    prompt, prompt_metrics = _handle_request(guard, span, kwargs)
-    LOGGER.debug("Prompt metrics: ", prompt_metrics)
-    response = await wrapped(*args, **kwargs)
-    LOGGER.debug(f"Async type response: {type(response)}")
-
-    if is_streaming_response(response):
-        # span will be closed after the generator is done
-        return _abuild_from_streaming_response(span, response)
-
-    _handle_response(guard, prompt, response, span)
-    span.end()
-
-    return response
-
-
-def _handle_request(secure_api: GuardrailsApi, span, kwargs):
-    _set_request_attributes(span, kwargs)
-    stream = kwargs.get("stream")
-    LOGGER.debug("Stream: %s. ", stream)
-    LOGGER.debug(f"Stream: {stream}")
-    messages = kwargs.get("messages")
-    user_messages = [m["content"] for m in messages if m["role"] == "user"]
-    prompt = user_messages[-1]
-    prompt_metrics = secure_api.eval_prompt(prompt) if secure_api is not None else None
-
-    if should_send_prompts():
-        _set_prompts(span, messages)
-        _set_functions_attributes(span, kwargs.get("functions"))
-
-    return prompt, prompt_metrics
-
-
-def _handle_response(secure_api: GuardrailsApi, prompt, response, span):
+def _handle_response(response):
     if is_openai_v1():
         response_dict = model_as_dict(response)
     else:
         response_dict = response
     response = response_dict["choices"][0]["message"]["content"]
-    response_metrics = secure_api.eval_response(prompt=prompt, response=response) if secure_api is not None else None
-    if response_metrics:
-        LOGGER.debug(response_metrics)
-        metrics = response_metrics.metrics[0]
-
-        for k in metrics.additional_keys:
-            if metrics.additional_properties[k] is not None:
-                span.set_attribute(f"langkit.metrics.{k}", metrics.additional_properties[k])
-
-    _set_response_attributes(span, response_dict)
-
-    if should_send_prompts():
-        _set_completions(span, response_dict.get("choices"))
 
     return response
+
+
+@_with_tracer_wrapper
+def chat_wrapper(tracer, guardrails_api: GuardrailsApi, wrapped, instance, args, kwargs):
+    if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+        return wrapped(*args, **kwargs)
+
+    prompt_provider = create_prompt_provider(kwargs)
+
+    def call_llm(span):
+        r = wrapped(*args, **kwargs)
+        is_streaming = kwargs.get("stream")
+        if not is_streaming:
+            _handle_response(r)
+            if is_openai_v1():
+                response_dict = model_as_dict(r)
+            else:
+                response_dict = r
+
+            _set_response_attributes(response_dict, span)
+        return r, is_streaming
+
+    def blocked_message_factory(eval_result: Optional[EvaluationResult] = None, is_prompt=True, open_api_v1=True, is_streaming=False):
+        if open_api_v1:
+            from openai.types.chat.chat_completion import ChatCompletion, Choice
+            from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+            from openai.types.chat.chat_completion_message import ChatCompletionMessage
+            from openai.types.completion_usage import CompletionUsage
+
+            if is_prompt:
+                content = "The prompt violates the policy set in WhyLabs Secure and cannot be processed."
+            else:
+                content = "The response violates the policy set in WhyLabs Secure and cannot be processed."
+            choice = Choice(
+                index=0,
+                finish_reason="stop",
+                message=ChatCompletionMessage(
+                    content=content,  #
+                    role="assistant",
+                ),
+            )
+            if not is_streaming:
+                return ChatCompletion(
+                    id="whylabs-guardrails-blocked",
+                    choices=[
+                        choice,
+                    ],
+                    created=1715902825,
+                    model="whylabs-guardrails",
+                    object="chat.completion",
+                    system_fingerprint=None,
+                    usage=CompletionUsage(completion_tokens=0, prompt_tokens=0, total_tokens=0),
+                )
+            else:
+                return ChatCompletionChunk(
+                    id="xyz",
+                    created=1715902825,
+                    choices=[choice],
+                    model="whylabs-guardrails",
+                    object="chat.completion.chunk",
+                )
+
+    def prompt_attributes_setter(span):
+        _set_request_attributes(span, kwargs)
+
+    def response_extractor(r):
+        if is_openai_v1():
+            response_dict = model_as_dict(r)
+        else:
+            response_dict = r
+        return response_dict["choices"][0]["message"]["content"]
+
+    return sync_wrapper(
+        tracer,
+        guardrails_api,
+        prompt_provider,
+        call_llm,
+        response_extractor,
+        prompt_attributes_setter,
+        LLMRequestTypeValues.CHAT,
+        blocked_message_factory=blocked_message_factory,
+    )
+
+
+@_with_tracer_wrapper
+async def achat_wrapper(tracer, guardrails_api: GuardrailsApi, wrapped, instance, args, kwargs):
+    if context_api.get_value(_SUPPRESS_INSTRUMENTATION_KEY):
+        return wrapped(*args, **kwargs)
+
+    prompt_provider = create_prompt_provider(kwargs)
+
+    async def call_llm(span):
+        r = await wrapped(*args, **kwargs)
+        is_streaming = kwargs.get("stream")
+        if not is_streaming:
+            _handle_response(r)
+            if is_openai_v1():
+                response_dict = model_as_dict(r)
+            else:
+                response_dict = r
+
+            _set_response_attributes(response_dict, span)
+            return True, r
+
+        else:
+            # TODO: handle streaming response. Where does guard response live?
+            res = _abuild_from_streaming_response(span, r)
+            return False, res
+
+    def prompt_attributes_setter(span):
+        _set_request_attributes(span, kwargs)
+
+    def response_extractor(r):
+        if is_openai_v1():
+            response_dict = model_as_dict(r)
+        else:
+            response_dict = r
+        return response_dict["choices"][0]["message"]["content"]
+
+    await async_wrapper(
+        tracer,
+        guardrails_api,  # guardrails_client,
+        prompt_provider,
+        call_llm,
+        response_extractor,
+        kwargs,
+        prompt_attributes_setter,
+        _abuild_from_streaming_response,
+        is_streaming_response,
+        LLMRequestTypeValues.CHAT,
+    )
 
 
 def _set_prompts(span, messages):
@@ -196,10 +252,10 @@ def _build_from_streaming_response(span, response):
 
         yield item_to_yield
 
-    _set_response_attributes(span, complete_response)
+    _set_response_attributes(complete_response, span)
 
-    if should_send_prompts():
-        _set_completions(span, complete_response.get("choices"))
+    # if should_send_prompts():
+    #     _set_completions(span, complete_response.get("choices"))
 
     span.set_status(Status(StatusCode.OK))
     span.end()
@@ -213,7 +269,7 @@ async def _abuild_from_streaming_response(span, response):
 
         yield item_to_yield
 
-    _set_response_attributes(span, complete_response)
+    _set_response_attributes(complete_response, span)
 
     if should_send_prompts():
         _set_completions(span, complete_response.get("choices"))
