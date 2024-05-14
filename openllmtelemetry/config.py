@@ -55,7 +55,7 @@ class GuardrailConfig(object):
         assert self.whylabs_endpoint is not None, "WhyLabs endpoint is not set."
         return f"{self.whylabs_endpoint.rstrip('/')}/v1/traces"
 
-    def guardrail_client(self, default_dataset_id: str) -> Optional[GuardrailsApi]:
+    def guardrail_client(self, default_dataset_id: Optional[str]) -> Optional[GuardrailsApi]:
         if self.guardrails_endpoint and self.guardrails_api_key:
             return GuardrailsApi(
                 guardrails_endpoint=self.guardrails_endpoint,
@@ -109,7 +109,9 @@ class GuardrailConfig(object):
 
     def __repr__(self):
         # hide the api_key from output
-        field_strs = [f"{field.name}='***key***'" if 'key' in field.name else f"{field.name}={getattr(self, field.name)}" for field in fields(self)]
+        field_strs = [
+            f"{field.name}='***key***'" if 'key' in field.name else f"{field.name}={getattr(self, field.name)}" for field in fields(self)
+        ]
         return f"{self.__class__.__name__}({', '.join(field_strs)})"
 
     @classmethod
@@ -127,7 +129,7 @@ class GuardrailConfig(object):
         return GuardrailConfig(whylabs_endpoint, whylabs_api_key, guardrails_endpoint, guardrails_api_key)
 
 
-def load_config() -> Optional[GuardrailConfig]:
+def load_config() -> GuardrailConfig:
     config_path = os.environ.get("WHYLABS_GUARDRAILS_CONFIG")
     if config_path is None:
         config_path = _DEFAULT_CONFIG_FILE
@@ -144,7 +146,7 @@ def load_config() -> Optional[GuardrailConfig]:
     return config
 
 
-def load_dataset_id(dataset_id: str) -> Optional[str]:
+def load_dataset_id(dataset_id: Optional[str]) -> Optional[str]:
     effective_dataset_id = os.environ.get("WHYLABS_DEFAULT_DATASET_ID", dataset_id)
     if effective_dataset_id is None:
         if _in_ipython_session:
@@ -200,7 +202,7 @@ def _interactive_config(config: GuardrailConfig) -> GuardrailConfig:
             os.makedirs(_CONFIG_DIR, exist_ok=True)
             guardrail_config.write(_DEFAULT_CONFIG_FILE)
         except Exception as e:  # noqa
-            LOGGER.exception("Failed to write the configuration file.")
+            LOGGER.exception(f"Failed to write the configuration file: {e}")
 
             print("Failed to write the configuration file.")
 

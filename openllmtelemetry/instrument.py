@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
@@ -13,6 +13,9 @@ from openllmtelemetry.version import __version__
 
 LOGGER = getLogger(__name__)
 
+_tracer_cache: Dict[str, trace.Tracer] = {}
+_last_added_tracer: Optional[Tuple[str, trace.Tracer]] = None
+
 
 def instrument(
     application_name: Optional[str] = None,
@@ -21,8 +24,15 @@ def instrument(
     service_name: Optional[str] = None,
     disable_batching: bool = False,
 ) -> Tracer:
+    global _tracer_cache, _last_added_tracer
+
     config = load_config()
     dataset_id = load_dataset_id(dataset_id)
+    if dataset_id is None:
+        raise ValueError(
+            "dataset_id must be specified in a parameter or in env var: e.g. "
+            "os.environ[\"WHYLABS_DEFAULT_DATASET_ID\"] = \"model-1\""
+        )
     guardrails_api = config.guardrail_client(default_dataset_id=dataset_id)
 
     if application_name is None:
@@ -49,6 +59,17 @@ def instrument(
 
     tracer = trace.get_tracer(tracer_name)
     trace.set_tracer_provider(tracer_provider)
+    _tracer_cache[tracer_name] = tracer
+    _last_added_tracer = (tracer_name, tracer)
 
     init_instrumentors(tracer, guardrails_api)
     return tracer
+
+
+def get_tracer(name: Optional[str] = None) -> Optional[Tracer]:
+    if _last_added_tracer is None:
+        return None
+    elif name is None:
+        return _last_added_tracer[1]
+    else:
+        return _tracer_cache.get(name)
