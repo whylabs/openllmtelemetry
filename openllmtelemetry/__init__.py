@@ -1,3 +1,3 @@
-from openllmtelemetry.instrument import instrument
+from openllmtelemetry.instrument import get_tracer, instrument
 
-__ALL__ = [instrument]
+__ALL__ = [instrument, get_tracer]
