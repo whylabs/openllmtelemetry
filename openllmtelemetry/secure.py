@@ -14,7 +14,7 @@ class GuardrailsApi(object):
         self,
         guardrails_endpoint: str,
         guardrails_api_key: str,
-        dataset_id: str,
+        dataset_id: Optional[str] = None,
         timeout: Optional[float] = 1.0,
         auth_header_name: str = "X-API-Key",
     ):
@@ -38,6 +38,9 @@ class GuardrailsApi(object):
         )  # type: ignore
 
     def eval_prompt(self, prompt: str) -> Optional[EvaluationResult]:
+        if self._dataset_id is None:
+            LOGGER.warning("GuardRail eval_prompt requires a dataset_id but dataset_id is None.")
+            return None
         profiling_request = LLMValidateRequest(prompt=prompt, dataset_id=self._dataset_id)
         res = Evaluate.sync(client=self._client, body=profiling_request, log=False)
 
@@ -49,6 +52,9 @@ class GuardrailsApi(object):
         return res
 
     def eval_response(self, prompt: str, response: str) -> Optional[EvaluationResult]:
+        if self._dataset_id is None:
+            LOGGER.warning("GuardRail eval_response requires a dataset_id but dataset_id is None.")
+            return None
         profiling_request = LLMValidateRequest(prompt=prompt, response=response, dataset_id=self._dataset_id)
         res = Evaluate.sync(client=self._client, body=profiling_request, log=False, perf_info=True)
         if isinstance(res, HTTPValidationError):
@@ -58,6 +64,9 @@ class GuardrailsApi(object):
         return res
 
     def eval_chunk(self, chunk: str) -> Optional[EvaluationResult]:
+        if self._dataset_id is None:
+            LOGGER.warning("GuardRail eval_chunk requires a dataset_id but dataset_id is None.")
+            return None
         profiling_request = LLMValidateRequest(response=chunk, dataset_id=self._dataset_id)
         res = Evaluate.sync(client=self._client, body=profiling_request, log=False)
 

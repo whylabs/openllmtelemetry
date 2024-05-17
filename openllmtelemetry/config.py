@@ -28,7 +28,7 @@ _DEFAULT_CONFIG_FILE = os.path.join(_CONFIG_DIR, "guardrails-config.ini")
 _in_ipython_session = False
 try:
     # noinspection PyStatementEffect
-    __IPYTHON__
+    __IPYTHON__  # pyright: ignore[reportUndefinedVariable,reportUnusedExpression]
     _in_ipython_session = True
 except NameError:
     pass
@@ -36,10 +36,10 @@ except NameError:
 
 @dataclass
 class GuardrailConfig(object):
-    whylabs_endpoint: Optional[str]
-    whylabs_api_key: Optional[str]
-    guardrails_endpoint: Optional[str]
-    guardrails_api_key: Optional[str]
+    whylabs_endpoint: Optional[str] = None
+    whylabs_api_key: Optional[str] = None
+    guardrails_endpoint: Optional[str] = None
+    guardrails_api_key: Optional[str] = None
 
     @property
     def is_partial(self):
@@ -95,14 +95,15 @@ class GuardrailConfig(object):
 
     def write(self, config_path: str):
         config = configparser.ConfigParser()
-        config[CFG_WHYLABS_SECTION] = {
-            CFG_ENDPOINT_KEY: self.whylabs_endpoint,
-            CFG_API_KEY: self.whylabs_api_key,
-        }
+        if self.whylabs_endpoint is not None and self.whylabs_api_key is not None:
+            config[CFG_WHYLABS_SECTION] = {
+                CFG_ENDPOINT_KEY: self.whylabs_endpoint,
+                CFG_API_KEY: self.whylabs_api_key,
+            }
         if self.guardrails_endpoint:
             config[CFG_GUARDRAILS_SECTION] = {
                 CFG_ENDPOINT_KEY: self.guardrails_endpoint,
-                CFG_API_KEY: self.guardrails_api_key,
+                CFG_API_KEY: self.guardrails_api_key or "",
             }
         with open(config_path, "w") as configfile:
             config.write(configfile)
@@ -110,7 +111,7 @@ class GuardrailConfig(object):
     def __repr__(self):
         # hide the api_key from output
         field_strs = [
-            f"{field.name}='***key***'" if 'key' in field.name else f"{field.name}={getattr(self, field.name)}" for field in fields(self)
+            f"{field.name}='***key***'" if "key" in field.name else f"{field.name}={getattr(self, field.name)}" for field in fields(self)
         ]
         return f"{self.__class__.__name__}({', '.join(field_strs)})"
 
