@@ -10,6 +10,7 @@ def test_instrument():
     try:
         openllmtelemetry.instrument(
             "my-test-application",
+            dataset_id="model-1"
         )
     finally:
         os.environ.pop("WHYLABS_DEFAULT_ORG_ID", None)

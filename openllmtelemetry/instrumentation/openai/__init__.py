@@ -22,7 +22,7 @@ from typing import Collection, Optional
 
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 
-from openllmtelemetry.secure import GuardrailsApi
+from openllmtelemetry.guardrails import GuardrailsApi
 
 from .utils import is_openai_v1
 from .v0 import OpenAIV0Instrumentor

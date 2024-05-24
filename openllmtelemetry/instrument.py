@@ -23,6 +23,7 @@ def instrument(
     tracer_name: Optional[str] = None,
     service_name: Optional[str] = None,
     disable_batching: bool = False,
+    debug: bool = False,
 ) -> Tracer:
     global _tracer_cache, _last_added_tracer
 
@@ -55,7 +56,7 @@ def instrument(
     )
 
     tracer_provider = TracerProvider(resource=resource)
-    config.config_tracer_provider(tracer_provider, dataset_id=dataset_id, disable_batching=disable_batching)
+    config.config_tracer_provider(tracer_provider, dataset_id=dataset_id, disable_batching=disable_batching, debug=debug)
 
     tracer = trace.get_tracer(tracer_name)
     trace.set_tracer_provider(tracer_provider)

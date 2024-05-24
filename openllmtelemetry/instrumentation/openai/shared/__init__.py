@@ -88,11 +88,12 @@ def _set_request_attributes(span, kwargs):
         _set_span_attribute(span, SpanAttributes.LLM_PRESENCE_PENALTY, kwargs.get("presence_penalty"))
         _set_span_attribute(span, SpanAttributes.LLM_USER, kwargs.get("user"))
         _set_span_attribute(span, SpanAttributes.LLM_HEADERS, str(kwargs.get("headers")))
+        _set_span_attribute(span, SpanAttributes.LLM_STREAMING, str(kwargs.get("stream")))
     except Exception as ex:  # pylint: disable=broad-except
         logger.warning("Failed to set input attributes for openai span, error: %s", str(ex))
 
 
-def _set_response_attributes(span, response):
+def _set_response_attributes(response, span):
     if not span.is_recording():
         return
 

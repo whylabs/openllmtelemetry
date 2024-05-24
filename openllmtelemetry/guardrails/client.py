@@ -1,10 +1,13 @@
 import logging
+import os
 from typing import Optional
 
 import whylogs_container_client.api.llm.evaluate as Evaluate
 from httpx import Timeout
 from whylogs_container_client import AuthenticatedClient
 from whylogs_container_client.models import EvaluationResult, HTTPValidationError, LLMValidateRequest
+from whylogs_container_client.models.metric_filter_options import MetricFilterOptions
+from whylogs_container_client.models.run_options import RunOptions
 
 LOGGER = logging.getLogger(__name__)
 
@@ -14,7 +17,7 @@ class GuardrailsApi(object):
         self,
         guardrails_endpoint: str,
         guardrails_api_key: str,
-        dataset_id: str,
+        dataset_id: Optional[str] = None,
         timeout: Optional[float] = 1.0,
         auth_header_name: str = "X-API-Key",
     ):
@@ -38,7 +41,12 @@ class GuardrailsApi(object):
         )  # type: ignore
 
     def eval_prompt(self, prompt: str) -> Optional[EvaluationResult]:
-        profiling_request = LLMValidateRequest(prompt=prompt, dataset_id=self._dataset_id)
+        dataset_id = os.environ.get("CURRENT_DATASET_ID") or self._dataset_id
+        LOGGER.info(f"Evaluate prompt for dataset_id: {dataset_id}")
+        if dataset_id is None:
+            LOGGER.warning("GuardRail eval_prompt requires a dataset_id but dataset_id is None.")
+            return None
+        profiling_request = LLMValidateRequest(prompt=prompt, dataset_id=dataset_id)
         res = Evaluate.sync(client=self._client, body=profiling_request, log=False)
 
         if isinstance(res, HTTPValidationError):
@@ -49,7 +57,21 @@ class GuardrailsApi(object):
         return res
 
     def eval_response(self, prompt: str, response: str) -> Optional[EvaluationResult]:
-        profiling_request = LLMValidateRequest(prompt=prompt, response=response, dataset_id=self._dataset_id)
+        # nested array so you can model a metric requiring multiple inputs. That line says "only run the metrics
+        # that require response OR (prompt and response)", which would cover the input similarity metric
+        metric_filter_option = MetricFilterOptions(
+            by_required_inputs=[["response"], ["prompt", "response"]],
+        )
+        dataset_id = os.environ.get("CURRENT_DATASET_ID") or self._dataset_id
+        if dataset_id is None:
+            LOGGER.warning("GuardRail eval_response requires a dataset_id but dataset_id is None.")
+            return None
+        profiling_request = LLMValidateRequest(
+            prompt=prompt,
+            response=response,
+            dataset_id=dataset_id,
+            options=RunOptions(metric_filter=metric_filter_option),
+        )
         res = Evaluate.sync(client=self._client, body=profiling_request, log=False, perf_info=True)
         if isinstance(res, HTTPValidationError):
             LOGGER.warning(f"GuardRail request validation failure detected. Possible version mismatched: {res}")
@@ -58,7 +80,11 @@ class GuardrailsApi(object):
         return res
 
     def eval_chunk(self, chunk: str) -> Optional[EvaluationResult]:
-        profiling_request = LLMValidateRequest(response=chunk, dataset_id=self._dataset_id)
+        dataset_id = os.environ.get("CURRENT_DATASET_ID") or self._dataset_id
+        if dataset_id is None:
+            LOGGER.warning("GuardRail eval_chunk requires a dataset_id but dataset_id is None.")
+            return None
+        profiling_request = LLMValidateRequest(response=chunk, dataset_id=dataset_id)
         res = Evaluate.sync(client=self._client, body=profiling_request, log=False)
 
         if isinstance(res, HTTPValidationError):
