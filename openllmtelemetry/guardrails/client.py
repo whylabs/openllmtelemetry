@@ -41,7 +41,7 @@ class GuardrailsApi(object):
         )  # type: ignore
 
     def eval_prompt(self, prompt: str) -> Optional[EvaluationResult]:
-        dataset_id = os.environ["CURRENT_DATASET_ID"] or self._dataset_id
+        dataset_id = os.environ.get("CURRENT_DATASET_ID") or self._dataset_id
         LOGGER.info(f"Evaluate prompt for dataset_id: {dataset_id}")
         if dataset_id is None:
             LOGGER.warning("GuardRail eval_prompt requires a dataset_id but dataset_id is None.")
@@ -62,7 +62,7 @@ class GuardrailsApi(object):
         metric_filter_option = MetricFilterOptions(
             by_required_inputs=[["response"], ["prompt", "response"]],
         )
-        dataset_id = os.environ["CURRENT_DATASET_ID"] or self._dataset_id
+        dataset_id = os.environ.get("CURRENT_DATASET_ID") or self._dataset_id
         if dataset_id is None:
             LOGGER.warning("GuardRail eval_response requires a dataset_id but dataset_id is None.")
             return None
@@ -80,7 +80,7 @@ class GuardrailsApi(object):
         return res
 
     def eval_chunk(self, chunk: str) -> Optional[EvaluationResult]:
-        dataset_id = os.environ["CURRENT_DATASET_ID"] or self._dataset_id
+        dataset_id = os.environ.get("CURRENT_DATASET_ID") or self._dataset_id
         if dataset_id is None:
             LOGGER.warning("GuardRail eval_chunk requires a dataset_id but dataset_id is None.")
             return None
