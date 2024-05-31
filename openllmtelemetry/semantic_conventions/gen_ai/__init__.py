@@ -43,6 +43,7 @@ class SpanAttributes:
     LLM_REQUEST_FUNCTIONS = "llm.request.functions"
     LLM_STREAMING = "llm.streaming"
 
+    LLM_HOST = "llm.host"
     # Vector DB
     VECTOR_DB_VENDOR = "vector_db.vendor"
     VECTOR_DB_QUERY_TOP_K = "vector_db.query.top_k"

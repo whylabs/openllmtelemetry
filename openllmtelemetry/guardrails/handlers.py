@@ -26,6 +26,7 @@ def sync_wrapper(
     request_type: LLMRequestTypeValues,
     streaming_response_handler=None,
     blocked_message_factory=None,
+    completion_span_name=SPAN_NAME,
 ):
     """
     Wrapper for synchronous calls to an LLM API.
@@ -48,7 +49,7 @@ def sync_wrapper(
             return blocked_message_factory(prompt_eval, True)
 
         with tracer.start_span(
-            SPAN_NAME,
+            completion_span_name,
             kind=SpanKind.CLIENT,
             attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SPAN_TYPE: "completion"},
         ) as span:

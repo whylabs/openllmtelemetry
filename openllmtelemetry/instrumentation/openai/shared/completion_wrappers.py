@@ -27,7 +27,6 @@ from opentelemetry.trace.status import Status, StatusCode
 from openllmtelemetry.guardrails import GuardrailsApi
 from openllmtelemetry.guardrails.handlers import async_wrapper, sync_wrapper
 from openllmtelemetry.instrumentation.openai.shared import (
-    _set_functions_attributes,
     _set_request_attributes,
     _set_response_attributes,
     _set_span_attribute,
@@ -74,7 +73,7 @@ def completion_wrapper(tracer, guardrails_api: Optional[GuardrailsApi], wrapped,
         return r
 
     def prompt_attributes_setter(span):
-        _set_request_attributes(span, kwargs)
+        _set_request_attributes(span, kwargs, instance=instance)
 
     def response_extractor(r):
         if is_openai_v1():
@@ -102,7 +101,7 @@ async def acompletion_wrapper(tracer, guardrails_api: Optional[GuardrailsApi], w
         return r
 
     def prompt_attributes_setter(span):
-        _set_request_attributes(span, kwargs)
+        _set_request_attributes(span, kwargs, instance=instance)
 
     def response_extractor(r):
         if is_openai_v1():
@@ -123,13 +122,6 @@ async def acompletion_wrapper(tracer, guardrails_api: Optional[GuardrailsApi], w
         is_streaming_response,
         LLMRequestTypeValues.COMPLETION,
     )
-
-
-def _handle_request(span, kwargs):
-    _set_request_attributes(span, kwargs)
-    if should_send_prompts():
-        _set_prompts(span, kwargs.get("prompt"))
-        _set_functions_attributes(span, kwargs.get("functions"))
 
 
 def _handle_response(response, span):
