@@ -46,16 +46,17 @@ def _set_span_attribute(span, name, value):
     return
 
 
-def _set_api_attributes(span):
+def _set_api_attributes(span, instance=None):
     if not span.is_recording():
         return
 
     try:
-        base_url = openai.base_url if hasattr(openai, "base_url") else openai.api_base
+        base_url = getattr(getattr(instance, "_client", None), "base_url", None)
 
-        _set_span_attribute(span, OPENAI_API_BASE, base_url)
+        _set_span_attribute(span, "llm.base_url", str(base_url))
         _set_span_attribute(span, OPENAI_API_TYPE, openai.api_type)
         _set_span_attribute(span, OPENAI_API_VERSION, openai.api_version)
+        _set_span_attribute(span, "openapi.client.version", openai.__version__)
     except Exception as ex:  # pylint: disable=broad-except
         logger.warning("Failed to set api attributes for openai span, error: %s", str(ex))
 
@@ -73,13 +74,13 @@ def _set_functions_attributes(span, functions):
         _set_span_attribute(span, f"{prefix}.parameters", json.dumps(function.get("parameters")))
 
 
-def _set_request_attributes(span, kwargs):
+def _set_request_attributes(span, kwargs, vendor="unknown", instance=None):
     if not span.is_recording():
         return
 
     try:
-        _set_api_attributes(span)
-        _set_span_attribute(span, SpanAttributes.LLM_VENDOR, "OpenAI")
+        _set_api_attributes(span, instance)
+        _set_span_attribute(span, SpanAttributes.LLM_VENDOR, vendor)
         _set_span_attribute(span, SpanAttributes.LLM_REQUEST_MODEL, kwargs.get("model"))
         _set_span_attribute(span, SpanAttributes.LLM_REQUEST_MAX_TOKENS, kwargs.get("max_tokens"))
         _set_span_attribute(span, SpanAttributes.LLM_TEMPERATURE, kwargs.get("temperature"))

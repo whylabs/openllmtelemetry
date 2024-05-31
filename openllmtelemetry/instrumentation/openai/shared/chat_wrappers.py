@@ -19,8 +19,10 @@ Original source: openllmetry: https://github.com/traceloop/openllmetry
 """
 import json
 import logging
+import time
 from typing import Optional
 
+# Get current datetime in epoch seconds and convert to int
 from opentelemetry import context as context_api
 
 # noinspection PyProtectedMember
@@ -75,12 +77,23 @@ def chat_wrapper(tracer, guardrails_api: GuardrailsApi, wrapped, instance, args,
         return wrapped(*args, **kwargs)
 
     prompt_provider = create_prompt_provider(kwargs)
+    host = getattr(getattr(getattr(instance, "_client", None), "base_url", None), "host", None)
+    vendor = "GenericOpenAI"
+    span_name = "llm.chat"
+    if host and host.endswith(".openai.com"):
+        vendor = "OpenAI"
+        span_name = "openai.chat"
+    elif host.endswith(".azure.com"):
+        vendor = "AzureOpenAI"
+        span_name = "azureopenai.chat"
+    elif host.endswith(".nvidia.com"):
+        vendor = "Nvidia"
+        span_name = "nvidia.nim.chat"
 
     def call_llm(span):
         r = wrapped(*args, **kwargs)
         is_streaming = kwargs.get("stream")
         if not is_streaming:
-            _handle_response(r)
             if is_openai_v1():
                 response_dict = model_as_dict(r)
             else:
@@ -97,9 +110,9 @@ def chat_wrapper(tracer, guardrails_api: GuardrailsApi, wrapped, instance, args,
             from openai.types.completion_usage import CompletionUsage
 
             if is_prompt:
-                content = "The prompt violates the policy set in WhyLabs Secure and cannot be processed."
+                content = f"Prompt blocked by WhyLabs: {eval_result.action.block_message}"
             else:
-                content = "The response violates the policy set in WhyLabs Secure and cannot be processed."
+                content = f"Response blocked by WhyLabs: {eval_result.action.block_message}"
             choice = Choice(
                 index=0,
                 finish_reason="stop",
@@ -108,13 +121,15 @@ def chat_wrapper(tracer, guardrails_api: GuardrailsApi, wrapped, instance, args,
                     role="assistant",
                 ),
             )
+            current_epoch_time = int(time.time())
+
             if not is_streaming:
                 return ChatCompletion(
                     id="whylabs-guardrails-blocked",
                     choices=[
                         choice,
                     ],
-                    created=1715902825,
+                    created=current_epoch_time,
                     model="whylabs-guardrails",
                     object="chat.completion",
                     system_fingerprint=None,
@@ -122,15 +137,15 @@ def chat_wrapper(tracer, guardrails_api: GuardrailsApi, wrapped, instance, args,
                 )
             else:
                 return ChatCompletionChunk(
-                    id="xyz",
-                    created=1715902825,
+                    id="whylabs-guardrails-blocked",
+                    created=current_epoch_time,
                     choices=[choice],
                     model="whylabs-guardrails",
                     object="chat.completion.chunk",
                 )
 
     def prompt_attributes_setter(span):
-        _set_request_attributes(span, kwargs)
+        _set_request_attributes(span, kwargs, vendor=vendor, instance=instance)
 
     def response_extractor(r):
         if is_openai_v1():
@@ -148,6 +163,7 @@ def chat_wrapper(tracer, guardrails_api: GuardrailsApi, wrapped, instance, args,
         prompt_attributes_setter,
         LLMRequestTypeValues.CHAT,
         blocked_message_factory=blocked_message_factory,
+        completion_span_name=span_name,
     )
 
 
@@ -177,7 +193,7 @@ async def achat_wrapper(tracer, guardrails_api: GuardrailsApi, wrapped, instance
             return False, res
 
     def prompt_attributes_setter(span):
-        _set_request_attributes(span, kwargs)
+        _set_request_attributes(span, kwargs, instance=instance)
 
     def response_extractor(r):
         if is_openai_v1():
