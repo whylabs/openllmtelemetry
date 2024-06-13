@@ -17,6 +17,8 @@ CFG_API_KEY = "api_key"
 
 CFG_ENDPOINT_KEY = "endpoint"
 
+CFG_LOG_PROFILE_KEY = "log_profile"
+
 CFG_WHYLABS_SECTION = "whylabs"
 
 CFG_GUARDRAILS_SECTION = "guardrails"
@@ -41,6 +43,7 @@ class GuardrailConfig(object):
     whylabs_api_key: Optional[str] = None
     guardrails_endpoint: Optional[str] = None
     guardrails_api_key: Optional[str] = None
+    log_profile: Optional[str] = None
 
     @property
     def is_partial(self):
@@ -62,6 +65,7 @@ class GuardrailConfig(object):
                 guardrails_endpoint=self.guardrails_endpoint,
                 guardrails_api_key=self.guardrails_api_key,
                 dataset_id=default_dataset_id,
+                log_profile=True if self.log_profile is None or self.log_profile.lower() == "true" else False,
             )
         LOGGER.warning("GuardRails endpoint is not set.")
         return None
@@ -106,6 +110,7 @@ class GuardrailConfig(object):
             config[CFG_GUARDRAILS_SECTION] = {
                 CFG_ENDPOINT_KEY: self.guardrails_endpoint,
                 CFG_API_KEY: self.guardrails_api_key or "",
+                CFG_LOG_PROFILE_KEY: self.log_profile or "",
             }
         with open(config_path, "w") as configfile:
             config.write(configfile)
@@ -128,8 +133,9 @@ class GuardrailConfig(object):
         whylabs_api_key = config.get(CFG_WHYLABS_SECTION, CFG_API_KEY)
         guardrails_endpoint = config.get(CFG_GUARDRAILS_SECTION, CFG_ENDPOINT_KEY, fallback=None)
         guardrails_api_key = config.get(CFG_GUARDRAILS_SECTION, CFG_API_KEY, fallback=None)
+        log_profile = config.get(CFG_GUARDRAILS_SECTION, CFG_LOG_PROFILE_KEY, fallback=None)
 
-        return GuardrailConfig(whylabs_endpoint, whylabs_api_key, guardrails_endpoint, guardrails_api_key)
+        return GuardrailConfig(whylabs_endpoint, whylabs_api_key, guardrails_endpoint, guardrails_api_key, log_profile)
 
 
 def load_config() -> GuardrailConfig:
@@ -169,7 +175,8 @@ def _load_config_from_env(config: Optional[GuardrailConfig] = None) -> Guardrail
     whylabs_api_key = os.environ.get("WHYLABS_API_KEY", config.whylabs_api_key)
     guardrails_endpoint = os.environ.get("GUARDRAILS_ENDPOINT", config.guardrails_endpoint)
     guardrails_api_key = os.environ.get("GUARDRAILS_API_KEY", config.guardrails_api_key)
-    guardrail_config = GuardrailConfig(whylabs_endpoint, whylabs_api_key, guardrails_endpoint, guardrails_api_key)
+    log_profile = os.environ.get("GUARDRAILS_LOG_PROFILE", config.log_profile)
+    guardrail_config = GuardrailConfig(whylabs_endpoint, whylabs_api_key, guardrails_endpoint, guardrails_api_key, log_profile)
     return guardrail_config
 
 

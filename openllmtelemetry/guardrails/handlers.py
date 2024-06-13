@@ -1,8 +1,11 @@
 import logging
-from typing import Optional
+from typing import Dict, List, Optional, Union
 
-from opentelemetry.trace import SpanKind
+from opentelemetry.trace import Span, SpanKind
+from opentelemetry.util.types import Attributes
 from whylogs_container_client.models import EvaluationResult
+from whylogs_container_client.models.validation_failure import ValidationFailure
+from whylogs_container_client.types import Unset
 
 from openllmtelemetry.guardrails import GuardrailsApi
 from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
@@ -14,7 +17,43 @@ SPAN_NAME = "openai.chat"
 
 LLM_REQUEST_TYPE = LLMRequestTypeValues.CHAT
 _LANGKIT_METRIC_PREFIX = "langkit.metrics"
+_RESPONSE_SCORE_PREFIX = "response.score."
+_PROMPT_SCORE_PREFIX = "prompt.score."
 
+
+def generate_event(report: List[ValidationFailure], eval_metadata: Dict[str, Union[str, float, int]], span: Span):
+    policy_version = eval_metadata.get("policy_id") if eval_metadata else ""
+    if not report:
+        return
+    for validation_failure in report:
+        rule = validation_failure.metric.replace(_RESPONSE_SCORE_PREFIX, "").replace(_PROMPT_SCORE_PREFIX, "")
+        validation_id = validation_failure.id
+        event_attributes: Attributes = dict()
+        if policy_version is not None:
+            event_attributes["langkit.metrics.policy"] = policy_version
+        event_attributes["rule_id"] = rule
+        event_attributes["explanation"] = validation_failure.details
+        event_attributes["id"] = validation_id
+        event_attributes["metrics"] = [validation_failure.metric]
+
+        action = validation_failure.additional_properties.get("failure_level")
+        if action is not None:
+            event_attributes["action"] = action,
+
+        if validation_failure.allowed_values is not None:
+            event_attributes["allowed_values"] = str(validation_failure.allowed_values)
+        if validation_failure.lower_threshold is not None and not isinstance(validation_failure.lower_threshold, Unset):
+            event_attributes["lower_threshold"] = validation_failure.lower_threshold
+        if validation_failure.must_be_non_none is not None and not isinstance(validation_failure.must_be_non_none, Unset):
+            event_attributes["must_be_non_none"] = validation_failure.must_be_non_none
+        if validation_failure.must_be_none is not None and not isinstance(validation_failure.must_be_none, Unset):
+            event_attributes["must_be_none"] = validation_failure.must_be_none
+        if validation_failure.upper_threshold is not None and not isinstance(validation_failure.upper_threshold, Unset):
+            event_attributes["upper_threshold"] = validation_failure.upper_threshold
+        if validation_failure.value is not None:
+            event_attributes["metric_value"] = validation_failure.value
+        name = "guardrails.api.validation_failure"
+        span.add_event(name, event_attributes)
 
 def sync_wrapper(
     tracer,
@@ -146,18 +185,32 @@ def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Opti
                     for k in metrics.additional_keys:
                         if metrics.additional_properties[k] is not None:
                             span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{k}", metrics.additional_properties[k])
+                    scores = evaluation_result.additional_properties.get('scores')
+                    if len(scores) > 0:
+                        score_dictionary = scores[0]
+                        for score_key in score_dictionary:
+                            score_dictionary[score_key]
+                            if score_dictionary[score_key] is not None:
+                                slim_score_key = score_key.replace("response.score.", "").replace("prompt.score.", "")
+                                span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{slim_score_key}", score_dictionary[score_key])
+                    eval_metadata = evaluation_result.additional_properties.get('metadata')
+                    if eval_metadata:
+                        for metadata_key in eval_metadata:
+                            span.set_attribute(f"guardrails.api.{metadata_key}", eval_metadata[metadata_key])
                     tags = []
                     if evaluation_result.action.action_type == "block":
                         tags.append("BLOCKED")
+                        if evaluation_result.validation_results:
+                            generate_event(evaluation_result.validation_results.report, eval_metadata, span)
 
                     for r in evaluation_result.validation_results.report:
                         tags.append(r.metric.replace("response.score.", "").replace("prompt.score.", ""))
                     if len(tags) > 0:
                         span.set_attribute("langkit.insights.tags", tags)
                 return evaluation_result
-            except:  # noqa: E722
+            except Exception as e:  # noqa: E722
                 LOGGER.warning("Error evaluating prompt")
-                logging.exception("Error evaluating prompt")
+                logging.exception(f"Error evaluating prompt: {e}")
                 span.set_attribute("guardrails.error", 1)
                 # TODO: set more attributes to help us diagnose in our side
                 return None
@@ -179,9 +232,26 @@ def _guard_response(guardrails, prompt, response, tracer):
                     for k in metrics.additional_keys:
                         if metrics.additional_properties[k] is not None:
                             span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{k}", metrics.additional_properties[k])
+
+                    scores = result.additional_properties.get('scores')
+                    if len(scores) > 0:
+                        score_dictionary = scores[0]
+                        for score_key in score_dictionary:
+                            score_dictionary[score_key]
+                            if score_dictionary[score_key] is not None:
+                                slim_score_key = score_key.replace("response.score.", "").replace("prompt.score.", "")
+                                span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{slim_score_key}", score_dictionary[score_key])
+
+                    eval_metadata = result.additional_properties.get('metadata')
+                    if eval_metadata:
+                        for metadata_key in eval_metadata:
+                            span.set_attribute(f"guardrails.api.{metadata_key}", eval_metadata[metadata_key])
+
                     tags = []
                     if result.action.action_type == "block":
                         tags.append("BLOCKED")
+                    if result.validation_results and result.validation_results.report:
+                        generate_event(result.validation_results.report, eval_metadata, span)
 
                     for r in result.validation_results.report:
                         tags.append(r.metric.replace("response.score.", "").replace("prompt.score.", ""))
@@ -192,3 +262,4 @@ def _guard_response(guardrails, prompt, response, tracer):
                 LOGGER.warning("Error evaluating response")
                 span.set_attribute("guardrails.error", 1)
                 return None
+
