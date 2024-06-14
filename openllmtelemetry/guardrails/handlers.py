@@ -22,7 +22,7 @@ _PROMPT_SCORE_PREFIX = "prompt.score."
 
 
 def generate_event(report: List[ValidationFailure], eval_metadata: Dict[str, Union[str, float, int]], span: Span):
-    policy_version = eval_metadata.get("policy_id") if eval_metadata else ""
+    policy_version = eval_metadata.get("policy_id")
     if not report:
         return
     for validation_failure in report:
@@ -185,15 +185,15 @@ def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Opti
                     for k in metrics.additional_keys:
                         if metrics.additional_properties[k] is not None:
                             span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{k}", metrics.additional_properties[k])
-                    scores = evaluation_result.additional_properties.get('scores')
-                    if len(scores) > 0:
-                        score_dictionary = scores[0]
+                    scores = evaluation_result.scores
+                    if scores and len(scores) > 0:
+                        score_dictionary = scores[0].additional_properties
                         for score_key in score_dictionary:
                             score_dictionary[score_key]
                             if score_dictionary[score_key] is not None:
                                 slim_score_key = score_key.replace("response.score.", "").replace("prompt.score.", "")
                                 span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{slim_score_key}", score_dictionary[score_key])
-                    eval_metadata = evaluation_result.additional_properties.get('metadata')
+                    eval_metadata = evaluation_result.metadata.additional_properties
                     if eval_metadata:
                         for metadata_key in eval_metadata:
                             span.set_attribute(f"guardrails.api.{metadata_key}", eval_metadata[metadata_key])
@@ -233,16 +233,16 @@ def _guard_response(guardrails, prompt, response, tracer):
                         if metrics.additional_properties[k] is not None:
                             span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{k}", metrics.additional_properties[k])
 
-                    scores = result.additional_properties.get('scores')
-                    if len(scores) > 0:
-                        score_dictionary = scores[0]
+                    scores = result.scores
+                    if scores and len(scores) > 0:
+                        score_dictionary = scores[0].additional_properties
                         for score_key in score_dictionary:
                             score_dictionary[score_key]
                             if score_dictionary[score_key] is not None:
                                 slim_score_key = score_key.replace("response.score.", "").replace("prompt.score.", "")
                                 span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{slim_score_key}", score_dictionary[score_key])
 
-                    eval_metadata = result.additional_properties.get('metadata')
+                    eval_metadata = result.metadata.additional_properties
                     if eval_metadata:
                         for metadata_key in eval_metadata:
                             span.set_attribute(f"guardrails.api.{metadata_key}", eval_metadata[metadata_key])
