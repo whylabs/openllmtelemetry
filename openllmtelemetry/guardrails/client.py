@@ -20,6 +20,7 @@ class GuardrailsApi(object):
         dataset_id: Optional[str] = None,
         timeout: Optional[float] = 1.0,
         auth_header_name: str = "X-API-Key",
+        log_profile: bool = True,
     ):
         """
         Construct a new WhyLabs Guard client
@@ -32,6 +33,7 @@ class GuardrailsApi(object):
         """
         self._api_key = guardrails_api_key
         self._dataset_id = dataset_id
+        self._log = log_profile
         self._client = AuthenticatedClient(
             base_url=guardrails_endpoint,  # type: ignore
             token=guardrails_api_key,  #
@@ -47,7 +49,7 @@ class GuardrailsApi(object):
             LOGGER.warning("GuardRail eval_prompt requires a dataset_id but dataset_id is None.")
             return None
         profiling_request = LLMValidateRequest(prompt=prompt, dataset_id=dataset_id)
-        res = Evaluate.sync(client=self._client, body=profiling_request, log=False)
+        res = Evaluate.sync(client=self._client, body=profiling_request, log=self._log)
 
         if isinstance(res, HTTPValidationError):
             # TODO: log out the client version and the API endpoint version
@@ -72,7 +74,7 @@ class GuardrailsApi(object):
             dataset_id=dataset_id,
             options=RunOptions(metric_filter=metric_filter_option),
         )
-        res = Evaluate.sync(client=self._client, body=profiling_request, log=False, perf_info=True)
+        res = Evaluate.sync(client=self._client, body=profiling_request, log=self._log, perf_info=True)
         if isinstance(res, HTTPValidationError):
             LOGGER.warning(f"GuardRail request validation failure detected. Possible version mismatched: {res}")
             return None
@@ -85,7 +87,7 @@ class GuardrailsApi(object):
             LOGGER.warning("GuardRail eval_chunk requires a dataset_id but dataset_id is None.")
             return None
         profiling_request = LLMValidateRequest(response=chunk, dataset_id=dataset_id)
-        res = Evaluate.sync(client=self._client, body=profiling_request, log=False)
+        res = Evaluate.sync(client=self._client, body=profiling_request, log=self._log)
 
         if isinstance(res, HTTPValidationError):
             LOGGER.warning(f"GuardRail request validation failure detected. Possible version mismatched: {res}")
