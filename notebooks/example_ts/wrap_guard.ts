@@ -6,12 +6,12 @@ import { GuardrailApiResponse, Metric, Score, Metadata, ValidationReportEntry } 
 
 export async function wrap_guard_prompt({ prompt, id, datasetId, response, config, parentSpan, tracer }: { prompt: string; id: string; datasetId: string; response?: string; config: Config, parentSpan?: Span, tracer: Tracer}): Promise<GuardrailApiResponse> {
   const span_name =  response ? `guardrails.response` : `guardrails.request`;
-  const span = parentSpan ? tracer.startSpan(span_name, undefined, trace.setSpan(context.active(), parentSpan)) : tracer.startSpan(span_name);
+  const ctx = parentSpan ? trace.setSpan(context.active(), parentSpan) : context.active();
+  const span = tracer.startSpan(span_name, undefined, ctx);
 
   try {
     // Add an attribute to the span
     span.setAttribute('span.type', 'guardrails');
-    span.setAttribute('source', 'tracing_example.ts');
 
     const guardrailRequestData = {
       prompt: prompt,
@@ -26,7 +26,7 @@ export async function wrap_guard_prompt({ prompt, id, datasetId, response, confi
     // Set metrics as span attributes
     guardrailResponse.metrics.forEach((metric: Metric) => {
       for (const [key, value] of Object.entries(metric)) {
-        if (value !== null) {
+        if (value !== null && !key.endsWith("redacted")) {
           span.setAttribute(`langkit.metrics.${key}`, value);
         }
       }
