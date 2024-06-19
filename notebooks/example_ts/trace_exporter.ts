@@ -48,7 +48,7 @@ class LoggingSpanProcessor extends SimpleSpanProcessor {
   }
 }
 
-export function initialize_tracing(config: Config, datasetId: string, serviceName = 'openllmtelemetry-instrumented-service') {
+export function initialize_tracing(config: Config, datasetId: string, serviceName = 'openllmtelemetry-instrumented-service'):BasicTracerProvider {
   const whylabs_api_key_header = {
     "X-API-Key": config.whylabs.api_key,
     "X-WHYLABS-RESOURCE": datasetId
