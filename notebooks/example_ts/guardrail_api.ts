@@ -1,7 +1,7 @@
 import { GuardrailApiResponse } from './guardrail_types';
 import { Config } from './config';
 
-export function callGuardrailApi({ prompt, id, datasetId, response, config }: { prompt: string; id: string; datasetId: string; response?: string; config: Config }) {
+export async function callGuardrailApi({ prompt, id, datasetId, response, config }: { prompt: string; id: string; datasetId: string; response?: string; config: Config }) {
   const postData = {
     prompt,
     id,
