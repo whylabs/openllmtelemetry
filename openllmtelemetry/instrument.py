@@ -8,7 +8,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.trace import Tracer
 
 from openllmtelemetry.config import load_config, load_dataset_id
-from openllmtelemetry.intrument_openai import init_instrumentors
+from openllmtelemetry.instrumentors import init_instrumentors
 from openllmtelemetry.version import __version__
 
 LOGGER = getLogger(__name__)
@@ -31,8 +31,7 @@ def instrument(
     dataset_id = load_dataset_id(dataset_id)
     if dataset_id is None:
         raise ValueError(
-            "dataset_id must be specified in a parameter or in env var: e.g. "
-            "os.environ[\"WHYLABS_DEFAULT_DATASET_ID\"] = \"model-1\""
+            "dataset_id must be specified in a parameter or in env var: e.g. " 'os.environ["WHYLABS_DEFAULT_DATASET_ID"] = "model-1"'
         )
     guardrails_api = config.guardrail_client(default_dataset_id=dataset_id)
 

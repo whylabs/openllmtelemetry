@@ -22,7 +22,15 @@ from enum import Enum
 
 class SpanAttributes:
     # LLM - Many of these will be prefixed with gen_ai
+    LLM_DECODING_METHOD = "llm.decoding_method"
+    LLM_RANDOM_SEED = "llm.random_seed"
+    LLM_MAX_NEW_TOKENS = "llm.max_new_tokens"
+    LLM_MIN_NEW_TOKENS = "llm.min_new_tokens"
+    LLM_REPETITION_PENALTY = "llm.repetition_penalty"
+    LLM_REQUEST_TEMPERATURE = "llm.request.temperature"
+    LLM_REQUEST_TOP_P = "llm.request.top_p"
     LLM_VENDOR = "llm.vendor"
+    LLM_SYSTEM = "llm.system"
     LLM_REQUEST_TYPE = "llm.request.type"
     LLM_REQUEST_MODEL = "llm.request.model"
     LLM_RESPONSE_MODEL = "llm.response.model"
@@ -42,7 +50,8 @@ class SpanAttributes:
     LLM_CHAT_STOP_SEQUENCES = "llm.chat.stop_sequences"
     LLM_REQUEST_FUNCTIONS = "llm.request.functions"
     LLM_STREAMING = "llm.streaming"
-
+    LLM_TOKEN_TYPE = "llm.token_type"
+    LLM_RESPONSE_STOP_REASON = "llm.response.stop_reason"
     LLM_HOST = "llm.host"
     # Vector DB
     VECTOR_DB_VENDOR = "vector_db.vendor"
