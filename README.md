@@ -52,8 +52,8 @@ import os
 
 os.environ["WHYLABS_API_KEY"] = "<your-whylabs-api-key>"
 os.environ["WHYLABS_DEFAULT_DATASET_ID"] = "<your-llm-resource-id>"
-os.environ["WHYLABS_GUARD_ENDPOINT"] = "<your container endpoint>"
-os.environ["WHYLABS_GUARD_API_KEY"] = "internal-secret-for-whylabs-Secure"
+os.environ["GUARDRAILS_ENDPOINT"] = "<your container endpoint>"
+os.environ["GUARDRAILS_API_KEY"] = "internal-secret-for-whylabs-Secure"
 ```
 
 Once this is done, all of your OpenAI interactions will be automatically traced. If you have rulesets enabled for blocking in WhyLabs Secure policy, the library will block requests accordingly
