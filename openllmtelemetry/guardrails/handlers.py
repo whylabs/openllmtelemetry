@@ -38,7 +38,7 @@ def generate_event(report: List[ValidationFailure], eval_metadata: Dict[str, Uni
 
         action = validation_failure.additional_properties.get("failure_level")
         if action is not None:
-            event_attributes["action"] = action,
+            event_attributes["action"] = (action,)
 
         if validation_failure.allowed_values is not None:
             event_attributes["allowed_values"] = str(validation_failure.allowed_values)
@@ -54,6 +54,7 @@ def generate_event(report: List[ValidationFailure], eval_metadata: Dict[str, Uni
             event_attributes["metric_value"] = validation_failure.value
         name = "guardrails.api.validation_failure"
         span.add_event(name, event_attributes)
+
 
 def sync_wrapper(
     tracer,
@@ -85,7 +86,10 @@ def sync_wrapper(
         prompt_eval = _evaluate_prompt(tracer, guardrails_client, prompt)
 
         if prompt_eval and prompt_eval.action and prompt_eval.action.action_type == "block":
-            return blocked_message_factory(prompt_eval, True)
+            if blocked_message_factory:
+                return blocked_message_factory(prompt_eval, True)
+            else:
+                LOGGER.warning("Prompt blocked but no blocked message factory provided")
 
         with tracer.start_span(
             completion_span_name,
@@ -105,9 +109,12 @@ def sync_wrapper(
 
         response_result = _guard_response(guardrails_client, prompt, response_text, tracer)
         if response_result and response_result.action and response_result.action.action_type == "block":
-            return blocked_message_factory(response_result, False)
-        else:
-            return response
+            if blocked_message_factory:
+                return blocked_message_factory(response_result, False)
+            else:
+                LOGGER.warning("Response blocked but no blocked message factory provided")
+
+        return response
 
 
 def start_span(request_type, tracer):
@@ -178,6 +185,7 @@ def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Opti
             # noinspection PyBroadException
             try:
                 evaluation_result = guardrails_api.eval_prompt(prompt)
+                LOGGER.debug("Prompt evaluated: %s", evaluation_result)
                 if evaluation_result:
                     # The underlying API can handle batches of inputs, so we always get a list of metrics
                     metrics = evaluation_result.metrics[0]
@@ -189,7 +197,6 @@ def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Opti
                     if scores and len(scores) > 0:
                         score_dictionary = scores[0].additional_properties
                         for score_key in score_dictionary:
-                            score_dictionary[score_key]
                             if score_dictionary[score_key] is not None:
                                 slim_score_key = score_key.replace("response.score.", "").replace("prompt.score.", "")
                                 span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{slim_score_key}", score_dictionary[score_key])
@@ -225,7 +232,7 @@ def _guard_response(guardrails, prompt, response, tracer):
             try:
                 result: Optional[EvaluationResult] = guardrails.eval_response(prompt=prompt, response=response)
                 if result:
-                    LOGGER.debug(result)
+                    LOGGER.debug("Response evaluated: %s", result)
                     # The underlying API can handle batches of inputs, so we always get a list of metrics
                     metrics = result.metrics[0]
 
@@ -237,7 +244,6 @@ def _guard_response(guardrails, prompt, response, tracer):
                     if scores and len(scores) > 0:
                         score_dictionary = scores[0].additional_properties
                         for score_key in score_dictionary:
-                            score_dictionary[score_key]
                             if score_dictionary[score_key] is not None:
                                 slim_score_key = score_key.replace("response.score.", "").replace("prompt.score.", "")
                                 span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{slim_score_key}", score_dictionary[score_key])
@@ -262,4 +268,3 @@ def _guard_response(guardrails, prompt, response, tracer):
                 LOGGER.warning("Error evaluating response")
                 span.set_attribute("guardrails.error", 1)
                 return None
-
