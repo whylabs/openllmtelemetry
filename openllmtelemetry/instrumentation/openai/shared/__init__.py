@@ -56,7 +56,7 @@ def _set_api_attributes(span, instance=None):
         _set_span_attribute(span, "llm.base_url", str(base_url))
         _set_span_attribute(span, OPENAI_API_TYPE, openai.api_type)
         _set_span_attribute(span, OPENAI_API_VERSION, openai.api_version)
-        _set_span_attribute(span, "openapi.client.version", openai.__version__)
+        _set_span_attribute(span, "openai.client.version", openai.version.VERSION)
     except Exception as ex:  # pylint: disable=broad-except
         logger.warning("Failed to set api attributes for openai span, error: %s", str(ex))
 
