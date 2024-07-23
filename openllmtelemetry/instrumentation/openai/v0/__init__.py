@@ -43,7 +43,7 @@ _instruments = ("openai >= 0.27.0", "openai < 1.0.0")
 
 class OpenAIV0Instrumentor(BaseInstrumentor):
     def __init__(self, guard: Optional[GuardrailsApi]):
-        self._guard = guard
+        self._secure_api = guard
 
     def instrumentation_dependencies(self) -> Collection[str]:
         return _instruments
@@ -52,12 +52,12 @@ class OpenAIV0Instrumentor(BaseInstrumentor):
         tracer_provider = kwargs.get("tracer_provider")
         tracer = get_tracer(__name__, __version__, tracer_provider)
 
-        wrap_function_wrapper("openai", "Completion.create", completion_wrapper(tracer))
-        wrap_function_wrapper("openai", "Completion.acreate", acompletion_wrapper(tracer))
-        wrap_function_wrapper("openai", "ChatCompletion.create", chat_wrapper(tracer))
-        wrap_function_wrapper("openai", "ChatCompletion.acreate", achat_wrapper(tracer))
-        wrap_function_wrapper("openai", "Embedding.create", embeddings_wrapper(tracer))
-        wrap_function_wrapper("openai", "Embedding.acreate", aembeddings_wrapper(tracer))
+        wrap_function_wrapper("openai", "Completion.create", completion_wrapper(tracer, self._secure_api))
+        wrap_function_wrapper("openai", "Completion.acreate", acompletion_wrapper(tracer, self._secure_api))
+        wrap_function_wrapper("openai", "ChatCompletion.create", chat_wrapper(tracer, self._secure_api))
+        wrap_function_wrapper("openai", "ChatCompletion.acreate", achat_wrapper(tracer, self._secure_api))
+        wrap_function_wrapper("openai", "Embedding.create", embeddings_wrapper(tracer, self._secure_api))
+        wrap_function_wrapper("openai", "Embedding.acreate", aembeddings_wrapper(tracer, self._secure_api))
 
     def _uninstrument(self, **kwargs):
         pass

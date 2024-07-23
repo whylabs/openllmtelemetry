@@ -17,7 +17,7 @@ Changes made: customization for WhyLabs
 
 Original source: openllmetry: https://github.com/traceloop/openllmetry
 """
-from typing import Collection
+from typing import Collection, Optional
 
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
 from opentelemetry.trace import get_tracer
@@ -42,7 +42,7 @@ _instruments = ("openai >= 1.0.0",)
 
 
 class OpenAIV1Instrumentor(BaseInstrumentor):
-    def __init__(self, guard: GuardrailsApi):
+    def __init__(self, guard: Optional[GuardrailsApi]):
         self._secure_api = guard
 
     def instrumentation_dependencies(self) -> Collection[str]:

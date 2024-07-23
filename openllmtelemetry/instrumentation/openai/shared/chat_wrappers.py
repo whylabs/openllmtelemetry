@@ -83,10 +83,10 @@ def chat_wrapper(tracer, guardrails_api: GuardrailsApi, wrapped, instance, args,
     if host and host.endswith(".openai.com"):
         vendor = "OpenAI"
         span_name = "openai.chat"
-    elif host.endswith(".azure.com"):
+    elif host and host.endswith(".azure.com"):
         vendor = "AzureOpenAI"
         span_name = "azureopenai.chat"
-    elif host.endswith(".nvidia.com"):
+    elif host and host.endswith(".nvidia.com"):
         vendor = "Nvidia"
         span_name = "nvidia.nim.chat"
 

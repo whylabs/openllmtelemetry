@@ -183,10 +183,7 @@ def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
                     _set_amazon_titan_span_attributes(span, request_body, {})
 
             def response_extractor(r):
-                if is_openai_v1():
-                    response_dict = model_as_dict(r)
-                else:
-                    response_dict = r
+                response_dict = r
                 return response_dict["choices"][0]["text"]
 
             # TODO: check for input text first
