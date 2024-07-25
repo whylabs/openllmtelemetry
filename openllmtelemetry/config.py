@@ -10,6 +10,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
 
+from openllmtelemetry.content_id import ContentIdProvider
 from openllmtelemetry.guardrails import GuardrailsApi
 from openllmtelemetry.span_exporter import DebugOTLSpanExporter
 
@@ -59,13 +60,14 @@ class GuardrailConfig(object):
         assert self.whylabs_endpoint is not None, "WhyLabs endpoint is not set."
         return f"{self.whylabs_endpoint.rstrip('/')}/v1/traces"
 
-    def guardrail_client(self, default_dataset_id: Optional[str]) -> Optional[GuardrailsApi]:
+    def guardrail_client(self, default_dataset_id: Optional[str], content_id_provider: Optional[ContentIdProvider] = None) -> Optional[GuardrailsApi]:
         if self.guardrails_endpoint and self.guardrails_api_key:
             return GuardrailsApi(
                 guardrails_endpoint=self.guardrails_endpoint,
                 guardrails_api_key=self.guardrails_api_key,
                 dataset_id=default_dataset_id,
                 log_profile=True if self.log_profile is None or self.log_profile.lower() == "true" else False,
+                content_id_provider=content_id_provider,
             )
         LOGGER.warning("GuardRails endpoint is not set.")
         return None

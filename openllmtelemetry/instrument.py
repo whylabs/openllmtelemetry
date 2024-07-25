@@ -1,6 +1,7 @@
+import hashlib
 import os
 from logging import getLogger
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
@@ -8,6 +9,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.trace import Tracer
 
 from openllmtelemetry.config import load_config, load_dataset_id
+from openllmtelemetry.content_id import ContentIdProvider
 from openllmtelemetry.instrumentors import init_instrumentors
 from openllmtelemetry.version import __version__
 
@@ -17,6 +19,13 @@ _tracer_cache: Dict[str, trace.Tracer] = {}
 _last_added_tracer: Optional[Tuple[str, trace.Tracer]] = None
 
 
+def sha256_content_id_provider(messages: list[str]) -> Optional[str]:
+    if not messages:
+        return None
+    hashed_strings = [hashlib.sha256(content.encode()).hexdigest() for content in messages]
+    return ".".join(hashed_strings)
+
+
 def instrument(
     application_name: Optional[str] = None,
     dataset_id: Optional[str] = None,
@@ -24,6 +33,7 @@ def instrument(
     service_name: Optional[str] = None,
     disable_batching: bool = False,
     debug: bool = False,
+    content_id_provider: ContentIdProvider = sha256_content_id_provider
 ) -> Tracer:
     global _tracer_cache, _last_added_tracer
 
@@ -33,7 +43,7 @@ def instrument(
         raise ValueError(
             "dataset_id must be specified in a parameter or in env var: e.g. " 'os.environ["WHYLABS_DEFAULT_DATASET_ID"] = "model-1"'
         )
-    guardrails_api = config.guardrail_client(default_dataset_id=dataset_id)
+    guardrails_api = config.guardrail_client(default_dataset_id=dataset_id, content_id_provider=content_id_provider)
 
     if application_name is None:
         otel_service_name = os.environ.get("OTEL_SERVICE_NAME")
