@@ -1,7 +1,7 @@
 import hashlib
 import os
 from logging import getLogger
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
