@@ -1,3 +1,4 @@
+from ast import List
 import logging
 import os
 from typing import Optional
@@ -8,6 +9,8 @@ from whylogs_container_client import AuthenticatedClient
 from whylogs_container_client.models import EvaluationResult, HTTPValidationError, LLMValidateRequest
 from whylogs_container_client.models.metric_filter_options import MetricFilterOptions
 from whylogs_container_client.models.run_options import RunOptions
+
+from openllmtelemetry.content_id import ContentIdProvider
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,6 +24,7 @@ class GuardrailsApi(object):
         timeout: Optional[float] = 1.0,
         auth_header_name: str = "X-API-Key",
         log_profile: bool = True,
+        content_id_provider: Optional[ContentIdProvider] = None,
     ):
         """
         Construct a new WhyLabs Guard client
@@ -41,6 +45,16 @@ class GuardrailsApi(object):
             auth_header_name=auth_header_name,  # type: ignore
             timeout=Timeout(timeout, read=timeout),  # type: ignore
         )  # type: ignore
+        self._content_id_provider = content_id_provider
+
+    def _generate_content_id(self, messages: list[str]) -> Optional[str]:
+        content_id = None
+        if self._content_id_provider is not None:
+            try:
+                content_id = self._content_id_provider(messages)
+            except Exception as error:
+                LOGGER.warning(f"Error generating the content_id of on the prompt, error: {error}")
+        return content_id
 
     def eval_prompt(self, prompt: str) -> Optional[EvaluationResult]:
         dataset_id = os.environ.get("CURRENT_DATASET_ID") or self._dataset_id
@@ -48,7 +62,8 @@ class GuardrailsApi(object):
         if dataset_id is None:
             LOGGER.warning("GuardRail eval_prompt requires a dataset_id but dataset_id is None.")
             return None
-        profiling_request = LLMValidateRequest(prompt=prompt, dataset_id=dataset_id)
+        content_id = self._generate_content_id([prompt])
+        profiling_request = LLMValidateRequest(prompt=prompt, dataset_id=dataset_id, id=content_id)
         res = Evaluate.sync(client=self._client, body=profiling_request, log=self._log)
 
         if isinstance(res, HTTPValidationError):
@@ -68,10 +83,12 @@ class GuardrailsApi(object):
         if dataset_id is None:
             LOGGER.warning("GuardRail eval_response requires a dataset_id but dataset_id is None.")
             return None
+        content_id = self._generate_content_id([prompt, response])
         profiling_request = LLMValidateRequest(
             prompt=prompt,
             response=response,
             dataset_id=dataset_id,
+            id=content_id,
             options=RunOptions(metric_filter=metric_filter_option),
         )
         res = Evaluate.sync(client=self._client, body=profiling_request, log=self._log, perf_info=True)
@@ -86,7 +103,8 @@ class GuardrailsApi(object):
         if dataset_id is None:
             LOGGER.warning("GuardRail eval_chunk requires a dataset_id but dataset_id is None.")
             return None
-        profiling_request = LLMValidateRequest(response=chunk, dataset_id=dataset_id)
+        content_id = self._generate_content_id([chunk])
+        profiling_request = LLMValidateRequest(response=chunk, dataset_id=dataset_id, id=content_id)
         res = Evaluate.sync(client=self._client, body=profiling_request, log=self._log)
 
         if isinstance(res, HTTPValidationError):
