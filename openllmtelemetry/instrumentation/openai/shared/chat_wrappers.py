@@ -108,24 +108,27 @@ def chat_wrapper(tracer, guardrails_api: GuardrailsApi, wrapped, instance, args,
             from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
             from openai.types.chat.chat_completion_message import ChatCompletionMessage
             from openai.types.completion_usage import CompletionUsage
+            import os
 
             if is_prompt:
                 content = f"Prompt blocked by WhyLabs: {eval_result.action.block_message}"
             else:
                 content = f"Response blocked by WhyLabs: {eval_result.action.block_message}"
+            blocked_message = os.environ.get("GUARDRAILS_BLOCKED_MESSAGE_OVERRIDE", content)
             choice = Choice(
                 index=0,
                 finish_reason="stop",
                 message=ChatCompletionMessage(
-                    content=content,  #
+                    content=blocked_message,  #
                     role="assistant",
                 ),
             )
             current_epoch_time = int(time.time())
-
+            blocked_id_prefix = "whylabs-guardrails-blocked-prompt" if is_prompt else "whylabs-guardrails-blocked"
+            blocked_id = f".{guardrails_api._content_id_provider([prompt_provider()])}" if guardrails_api._content_id_provider is not None else ""
             if not is_streaming:
                 return ChatCompletion(
-                    id="whylabs-guardrails-blocked",
+                    id=f"{blocked_id_prefix}{blocked_id}",
                     choices=[
                         choice,
                     ],
