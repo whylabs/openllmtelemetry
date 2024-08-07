@@ -21,7 +21,7 @@ class GuardrailsApi(object):
         guardrails_endpoint: str,
         guardrails_api_key: str,
         dataset_id: Optional[str] = None,
-        timeout: Optional[float] = 1.0,
+        timeout: Optional[float] = None,
         auth_header_name: str = "X-API-Key",
         log_profile: bool = True,
         content_id_provider: Optional[ContentIdProvider] = None,
@@ -38,6 +38,18 @@ class GuardrailsApi(object):
         self._api_key = guardrails_api_key
         self._dataset_id = dataset_id
         self._log = log_profile
+        default_timeout = 5.0
+        env_timeout = os.environ.get("GUARDRAILS_API_TIMEOUT")
+        if timeout is None:
+            if env_timeout is None:
+                timeout = default_timeout
+            else:
+                try:
+                    timeout = float(env_timeout)
+                except Exception as error:
+                    LOGGER.warning(f"Failure reading and paring GUARDRAILS_API_TIMEOUT as float: {error}, "
+                                   f"default timeout of {default_timeout} used.")
+                    timeout = default_timeout
         self._client = AuthenticatedClient(
             base_url=guardrails_endpoint,  # type: ignore
             token=guardrails_api_key,  #

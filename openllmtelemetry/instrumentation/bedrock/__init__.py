@@ -20,6 +20,8 @@ Original source: openllmetry: https://github.com/traceloop/openllmetry
 import json
 import logging
 import os
+import io
+import uuid
 from functools import wraps
 from typing import Collection, Optional
 
@@ -30,9 +32,11 @@ from opentelemetry.instrumentation.utils import (
     unwrap,
 )
 from opentelemetry.trace import SpanKind, get_tracer
+from whylogs_container_client.models import EvaluationResult
 from wrapt import wrap_function_wrapper
 
 from openllmtelemetry.guardrails import GuardrailsApi  # noqa: E402
+from openllmtelemetry.guardrails.handlers import _create_guardrail_span, generate_event
 from openllmtelemetry.instrumentation.bedrock.reusable_streaming_body import ReusableStreamingBody
 from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
 from openllmtelemetry.version import __version__
@@ -42,7 +46,6 @@ LOGGER = logging.getLogger(__name__)
 _instruments = ("boto3 >= 1.28.57",)
 
 WRAPPED_METHODS = [{"package": "botocore.client", "object": "ClientCreator", "method": "create_client"}]
-
 
 def should_send_prompts():
     return (os.getenv("TRACE_PROMPT_AND_RESPONSE") or "false").lower() == "true" or context_api.get_value("override_enable_content_tracing")
@@ -67,28 +70,51 @@ def _with_tracer_wrapper(func):
     return _with_tracer
 
 
+class BlockedMessageStream(io.BytesIO):
+    def __init__(self, content):
+        super().__init__(content)
+
+    def read(self, amt=None):
+        return super().read(amt)
+
+
+def _create_blocked_response_streaming_body(content):
+    content_stream = BlockedMessageStream(content)
+    content_length = len(content)
+    return ReusableStreamingBody(content_stream, content_length)
+
+
 def _handle_request(guardrails_api: Optional[GuardrailsApi], prompt: str, span):
-    prompt_metrics = None
+    evaluation_results = None
     if prompt is not None:
-        prompt_metrics = guardrails_api.eval_prompt(prompt) if guardrails_api is not None else None
-    if prompt_metrics and span is not None:
-        LOGGER.debug(prompt_metrics)
-        metrics = prompt_metrics.metrics[0]
+        evaluation_results = guardrails_api.eval_prompt(prompt) if guardrails_api is not None else None
+    if evaluation_results and span is not None:
+        LOGGER.debug(evaluation_results)
+        metrics = evaluation_results.metrics[0]
         for k in metrics.additional_keys:
             if metrics.additional_properties[k] is not None:
                 metric_value = metrics.additional_properties[k]
                 span.set_attribute(f"langkit.metrics.{k}", metric_value)
-    return prompt
+    return evaluation_results
 
 
 def _handle_response(secure_api: Optional[GuardrailsApi], prompt, response, span):
     response_text: Optional[str] = None
     response_metrics = None
-    results = response.get("results")
-    if results:
-        response_message = results[0]
-        if response_message:
+    # Titan
+    if "results" in response:
+        results = response.get("results")
+        if results and results[0]:
+            response_message = results[0]
             response_text = response_message.get("outputText")
+    # Claude
+    elif "content" in response:
+        content = response.get("content")
+        if content:
+            response_message = content[0]
+            if response_message and "text" in response_message:
+                response_text = response_message.get("text")
+
     if response_text is not None:
         response_metrics = secure_api.eval_response(prompt=prompt, response=response_text) if secure_api is not None else None
     if response_metrics:
@@ -102,7 +128,7 @@ def _handle_response(secure_api: Optional[GuardrailsApi], prompt, response, span
     else:
         LOGGER.debug("response metrics is none, skipping")
 
-    return response
+    return response_metrics
 
 
 @_with_tracer_wrapper
@@ -123,7 +149,7 @@ def _wrap(tracer, secure_api: GuardrailsApi, to_wrap, wrapped, instance, args, k
 def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
     @wraps(fn)
     def with_instrumentation(*args, **kwargs):
-        with tracer.start_as_current_span("bedrock.completion", kind=SpanKind.CLIENT) as span:
+        with tracer.start_as_current_span("interaction", kind=SpanKind.CLIENT) as span:
             request_body = json.loads(kwargs.get("body"))
             (vendor, model) = kwargs.get("modelId").split(".")
             is_titan_text = model.startswith("titan-text-")
@@ -132,7 +158,10 @@ def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
             if vendor == "cohere":
                 prompt = request_body.get("prompt")
             elif vendor == "anthropic":
-                prompt = request_body.get("inputText")
+                messages = request_body.get("messages")
+                last_message = messages[-1]
+                if last_message:
+                    prompt = last_message.get('content')
             elif vendor == "ai21":
                 prompt = request_body.get("prompt")
             elif vendor == "meta":
@@ -144,70 +173,78 @@ def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
                     LOGGER.debug("LLM not suppported yet")
             LOGGER.debug(f"extracted prompt: {prompt}")
 
-            def prompt_provider():
-                prompt = None
-                if vendor == "cohere":
-                    prompt = request_body.get("prompt")
-                elif vendor == "anthropic":
-                    prompt = request_body.get("inputText")
-                elif vendor == "ai21":
-                    prompt = request_body.get("prompt")
-                elif vendor == "meta":
-                    prompt = request_body.get("prompt")
-                elif vendor == "amazon":
-                    if is_titan_text:
-                        prompt = request_body["inputText"]
-                    else:
-                        LOGGER.debug("LLM not suppported yet")
-                LOGGER.debug(f"extracted prompt: {prompt}")
-                return prompt
+            with _create_guardrail_span(tracer) as guardrail_span:
+                eval_result = _handle_request(secure_api, prompt, guardrail_span)
 
-            def call_llm(span):
-                response = fn(*args, **kwargs)
+            def blocked_message_factory(eval_result: Optional[EvaluationResult] = None, is_prompt=True, is_streaming=False, request_id = None):
+                if is_prompt:
+                    content = f"Prompt blocked by WhyLabs: {eval_result.action.block_message}"
+                else:
+                    content = f"Response blocked by WhyLabs: {eval_result.action.block_message}"
+                blocked_message = os.environ.get("GUARDRAILS_BLOCKED_MESSAGE_OVERRIDE", content)
+                response_content = json.dumps({
+                        "inputTextTokenCount": 0,
+                        "results": [
+                            {
+                                "tokenCount": 0,
+                                "outputText": blocked_message,
+                                "completionReason": "FINISH"
+                            }
+                        ]
+                    }).encode('utf-8')
+                blocked_message_body = _create_blocked_response_streaming_body(response_content)
+                if request_id is None:
+                    request_id = str(uuid.uuid4())
+                blocked_response = {
+                    'ResponseMetadata': {
+                        'RequestId': request_id,
+                        'HTTPStatusCode': 200,
+                        'HTTPHeaders': {},
+                        'RetryAttempts': 0
+                    },
+                    'contentType': 'application/json',
+                    'body': blocked_message_body
+                }
+
+                return blocked_response
+
+            if eval_result and eval_result.action and eval_result.action.action_type == 'block':
+                blocked_prompt_response = blocked_message_factory(eval_result=eval_result)
+                if eval_result.validation_results:
+                    eval_metadata = eval_result.metadata.additional_properties
+                    generate_event(eval_result.validation_results.report, eval_metadata, span) # LOGGER.debug(f"blocked prompt: {eval_metadata}")
+                return blocked_prompt_response
+
+            response = None
+            with tracer.start_as_current_span("bedrock.completion", kind=SpanKind.CLIENT) as completion_span:
+                _set_span_attribute(completion_span, SpanAttributes.LLM_VENDOR, vendor)
+                _set_span_attribute(completion_span, SpanAttributes.LLM_REQUEST_MODEL, model)
+                response = fn(*args, **kwargs) # need to copy for a fake response
                 response["body"] = ReusableStreamingBody(response["body"]._raw_stream, response["body"]._content_length)
-                return response
-
-            def prompt_attributes_setter(span):
-                _set_span_attribute(span, SpanAttributes.LLM_VENDOR, vendor)
-                _set_span_attribute(span, SpanAttributes.LLM_REQUEST_MODEL, model)
+                response_body = json.loads(response.get("body").read())
 
                 if vendor == "cohere":
-                    _set_cohere_span_attributes(span, request_body, {})
+                    _set_cohere_span_attributes(completion_span, request_body, response_body)
                 elif vendor == "anthropic":
-                    _set_anthropic_span_attributes(span, request_body, {})
+                    _set_anthropic_span_attributes(completion_span, request_body, response_body)
                 elif vendor == "ai21":
-                    _set_ai21_span_attributes(span, request_body, {})
+                    _set_ai21_span_attributes(completion_span, request_body, response_body)
                 elif vendor == "meta":
-                    _set_llama_span_attributes(span, request_body, {})
+                    _set_llama_span_attributes(completion_span, request_body, response_body)
                 elif vendor == "amazon":
-                    _set_amazon_titan_span_attributes(span, request_body, {})
+                    _set_amazon_titan_span_attributes(completion_span, request_body, response_body)
 
-            def response_extractor(r):
-                response_dict = r
-                return response_dict["choices"][0]["text"]
-
-            # TODO: check for input text first
-            prompt = _handle_request(secure_api, prompt, span)
-            response = fn(*args, **kwargs)
-
-            response["body"] = ReusableStreamingBody(response["body"]._raw_stream, response["body"]._content_length)
-            response_body = json.loads(response.get("body").read())
-            response_body = _handle_response(secure_api, prompt, response_body, span)
-            # noinspection PyProtectedMember
-
-            _set_span_attribute(span, SpanAttributes.LLM_VENDOR, vendor)
-            _set_span_attribute(span, SpanAttributes.LLM_REQUEST_MODEL, model)
-
-            if vendor == "cohere":
-                _set_cohere_span_attributes(span, request_body, response_body)
-            elif vendor == "anthropic":
-                _set_anthropic_span_attributes(span, request_body, response_body)
-            elif vendor == "ai21":
-                _set_ai21_span_attributes(span, request_body, response_body)
-            elif vendor == "meta":
-                _set_llama_span_attributes(span, request_body, response_body)
-            elif vendor == "amazon":
-                _set_amazon_titan_span_attributes(span, request_body, response_body)
+            with _create_guardrail_span(tracer, "guardrails.response") as guard_response_span:
+                response_eval_result = _handle_response(secure_api, prompt, response_body, guard_response_span)
+            if response_eval_result and response_eval_result.action and response_eval_result.action.action_type == 'block':
+                request_id = None
+                if 'ResponseMetadata' in response:
+                    request_id = response['ResponseMetadata'].get('RequestId')
+                blocked_response_response = blocked_message_factory(eval_result=response_eval_result, is_prompt=False, request_id=request_id)
+                if response_eval_result.validation_results:
+                    response_eval_metadata = response_eval_result.metadata.additional_properties
+                    generate_event(response_eval_result.validation_results.report, response_eval_metadata, span)
+                return blocked_response_response
 
             return response
 
@@ -251,8 +288,18 @@ def _set_anthropic_span_attributes(span, request_body, response_body):
     _set_span_attribute(span, SpanAttributes.LLM_REQUEST_TYPE, LLMRequestTypeValues.COMPLETION.value)
     _set_span_attribute(span, SpanAttributes.LLM_TOP_P, request_body.get("top_p"))
     _set_span_attribute(span, SpanAttributes.LLM_TEMPERATURE, request_body.get("temperature"))
-    _set_span_attribute(span, SpanAttributes.LLM_REQUEST_MAX_TOKENS, request_body.get("max_tokens_to_sample"))
-
+    max_tokens = request_body.get("max_tokens") or request_body.get("max_tokens_to_sample")
+    _set_span_attribute(span, SpanAttributes.LLM_REQUEST_MAX_TOKENS, max_tokens)
+    _set_span_attribute(span, "anthropic_version", request_body.get("anthropic_version"))
+    _set_span_attribute(span, "response.id", response_body.get("id"))
+    usage = response_body.get("usage")
+    if usage:
+        prompt_tokens = usage.get("input_tokens")
+        completion_tokens = usage.get("output_tokens")
+        total_tokens = prompt_tokens + completion_tokens
+        _set_span_attribute(span, SpanAttributes.LLM_USAGE_PROMPT_TOKENS, prompt_tokens)
+        _set_span_attribute(span, SpanAttributes.LLM_USAGE_COMPLETION_TOKENS, completion_tokens)
+        _set_span_attribute(span, SpanAttributes.LLM_USAGE_TOTAL_TOKENS, total_tokens)
     if should_send_prompts():
         _set_span_attribute(span, f"{SpanAttributes.LLM_PROMPTS}.0.user", request_body.get("prompt"))
         _set_span_attribute(span, f"{SpanAttributes.LLM_COMPLETIONS}.0.content", response_body.get("completion"))

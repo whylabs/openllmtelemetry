@@ -209,6 +209,11 @@ def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Opti
                         tags.append("BLOCKED")
                         if evaluation_result.validation_results:
                             generate_event(evaluation_result.validation_results.report, eval_metadata, span)
+                    elif evaluation_result.action.action_type:
+                        if evaluation_result.validation_results:
+                            for report in evaluation_result.validation_results.report:
+                                tags.append(str(report.failure_level))
+                        generate_event(evaluation_result.validation_results.report, eval_metadata, span)
 
                     for r in evaluation_result.validation_results.report:
                         tags.append(r.metric.replace("response.score.", "").replace("prompt.score.", ""))
