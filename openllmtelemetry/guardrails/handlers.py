@@ -91,12 +91,16 @@ def sync_wrapper(
             else:
                 LOGGER.warning("Prompt blocked but no blocked message factory provided")
 
-        with tracer.start_span(
+        with tracer.start_as_current_span(
             completion_span_name,
             kind=SpanKind.CLIENT,
             attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SPAN_TYPE: "completion"},
         ) as span:
-            prompt_attributes_setter(span)
+            try:
+                prompt_attributes_setter(span)
+            except:  # noqa: E722
+                LOGGER.debug("Error setting prompt attributes")
+
             response, is_streaming = llm_caller(span)
             if is_streaming:
                 if streaming_response_handler:
@@ -126,7 +130,7 @@ def start_span(request_type, tracer):
 
 
 def _create_guardrail_span(tracer, name="guardrails.request"):
-    return tracer.start_span(
+    return tracer.start_as_current_span(
         name,
         kind=SpanKind.CLIENT,
         attributes={SPAN_TYPE: "guardrails"},
@@ -232,6 +236,9 @@ def _guard_response(guardrails, prompt, response, tracer):
             try:
                 result: Optional[EvaluationResult] = guardrails.eval_response(prompt=prompt, response=response)
                 if result:
+                    if result.additional_properties["server_side_trace_enabled"]:
+                        return result
+
                     LOGGER.debug("Response evaluated: %s", result)
                     # The underlying API can handle batches of inputs, so we always get a list of metrics
                     metrics = result.metrics[0]

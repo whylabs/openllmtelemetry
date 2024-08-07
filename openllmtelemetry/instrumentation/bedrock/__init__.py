@@ -71,13 +71,14 @@ def _handle_request(guardrails_api: Optional[GuardrailsApi], prompt: str, span):
     prompt_metrics = None
     if prompt is not None:
         prompt_metrics = guardrails_api.eval_prompt(prompt) if guardrails_api is not None else None
-    if prompt_metrics and span is not None:
-        LOGGER.debug(prompt_metrics)
-        metrics = prompt_metrics.metrics[0]
-        for k in metrics.additional_keys:
-            if metrics.additional_properties[k] is not None:
-                metric_value = metrics.additional_properties[k]
-                span.set_attribute(f"langkit.metrics.{k}", metric_value)
+    if not prompt_metrics.additional_properties["server_side_trace_enabled"]:
+        if prompt_metrics and span is not None:
+            LOGGER.debug(prompt_metrics)
+            metrics = prompt_metrics.metrics[0]
+            for k in metrics.additional_keys:
+                if metrics.additional_properties[k] is not None:
+                    metric_value = metrics.additional_properties[k]
+                    span.set_attribute(f"langkit.metrics.{k}", metric_value)
     return prompt
 
 
