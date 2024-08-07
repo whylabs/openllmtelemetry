@@ -101,11 +101,20 @@ def _handle_request(guardrails_api: Optional[GuardrailsApi], prompt: str, span):
 def _handle_response(secure_api: Optional[GuardrailsApi], prompt, response, span):
     response_text: Optional[str] = None
     response_metrics = None
-    results = response.get("results")
-    if results:
-        response_message = results[0]
-        if response_message:
+    # Titan
+    if "results" in response:
+        results = response.get("results")
+        if results and results[0]:
+            response_message = results[0]
             response_text = response_message.get("outputText")
+    # Claude
+    elif "content" in response:
+        content = response.get("content")
+        if content:
+            response_message = content[0]
+            if response_message and "text" in response_message:
+                response_text = response_message.get("text")
+
     if response_text is not None:
         response_metrics = secure_api.eval_response(prompt=prompt, response=response_text) if secure_api is not None else None
     if response_metrics:
@@ -149,7 +158,10 @@ def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
             if vendor == "cohere":
                 prompt = request_body.get("prompt")
             elif vendor == "anthropic":
-                prompt = request_body.get("inputText")
+                messages = request_body.get("messages")
+                last_message = messages[-1]
+                if last_message:
+                    prompt = last_message.get('content')
             elif vendor == "ai21":
                 prompt = request_body.get("prompt")
             elif vendor == "meta":
@@ -203,7 +215,6 @@ def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
                     generate_event(eval_result.validation_results.report, eval_metadata, span) # LOGGER.debug(f"blocked prompt: {eval_metadata}")
                 return blocked_prompt_response
 
-            # only call fn if not blocked
             response = None
             with tracer.start_as_current_span("bedrock.completion", kind=SpanKind.CLIENT) as completion_span:
                 _set_span_attribute(completion_span, SpanAttributes.LLM_VENDOR, vendor)
@@ -277,8 +288,18 @@ def _set_anthropic_span_attributes(span, request_body, response_body):
     _set_span_attribute(span, SpanAttributes.LLM_REQUEST_TYPE, LLMRequestTypeValues.COMPLETION.value)
     _set_span_attribute(span, SpanAttributes.LLM_TOP_P, request_body.get("top_p"))
     _set_span_attribute(span, SpanAttributes.LLM_TEMPERATURE, request_body.get("temperature"))
-    _set_span_attribute(span, SpanAttributes.LLM_REQUEST_MAX_TOKENS, request_body.get("max_tokens_to_sample"))
-
+    max_tokens = request_body.get("max_tokens") or request_body.get("max_tokens_to_sample")
+    _set_span_attribute(span, SpanAttributes.LLM_REQUEST_MAX_TOKENS, max_tokens)
+    _set_span_attribute(span, "anthropic_version", request_body.get("anthropic_version"))
+    _set_span_attribute(span, "response.id", response_body.get("id"))
+    usage = response_body.get("usage")
+    if usage:
+        prompt_tokens = usage.get("input_tokens")
+        completion_tokens = usage.get("output_tokens")
+        total_tokens = prompt_tokens + completion_tokens
+        _set_span_attribute(span, SpanAttributes.LLM_USAGE_PROMPT_TOKENS, prompt_tokens)
+        _set_span_attribute(span, SpanAttributes.LLM_USAGE_COMPLETION_TOKENS, completion_tokens)
+        _set_span_attribute(span, SpanAttributes.LLM_USAGE_TOTAL_TOKENS, total_tokens)
     if should_send_prompts():
         _set_span_attribute(span, f"{SpanAttributes.LLM_PROMPTS}.0.user", request_body.get("prompt"))
         _set_span_attribute(span, f"{SpanAttributes.LLM_COMPLETIONS}.0.content", response_body.get("completion"))
