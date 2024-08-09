@@ -114,6 +114,9 @@ def _handle_response(secure_api: Optional[GuardrailsApi], prompt, response, span
             response_message = content[0]
             if response_message and "text" in response_message:
                 response_text = response_message.get("text")
+    # LLama 2/3 instruct/chat
+    elif "generation" in response:
+        response_text = response.get("generation")
 
     if response_text is not None:
         response_metrics = secure_api.eval_response(prompt=prompt, response=response_text) if secure_api is not None else None
@@ -182,16 +185,36 @@ def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
                 else:
                     content = f"Response blocked by WhyLabs: {eval_result.action.block_message}"
                 blocked_message = os.environ.get("GUARDRAILS_BLOCKED_MESSAGE_OVERRIDE", content)
-                response_content = json.dumps({
-                        "inputTextTokenCount": 0,
-                        "results": [
-                            {
-                                "tokenCount": 0,
-                                "outputText": blocked_message,
-                                "completionReason": "FINISH"
-                            }
-                        ]
-                    }).encode('utf-8')
+                if vendor == "amazon":
+                    response_content = json.dumps({
+                            "inputTextTokenCount": 0,
+                            "results": [
+                                {
+                                    "tokenCount": 0,
+                                    "outputText": blocked_message,
+                                    "completionReason": "FINISH"
+                                }
+                            ]
+                        }).encode('utf-8')
+                elif vendor == "meta":
+                     response_content = json.dumps({
+                        "generation": blocked_message,
+                        "prompt_token_count": 0,
+                        "generation_token_count": 0,
+                        }).encode('utf-8')
+                elif vendor == "anthropic":
+                    response_content = json.dumps({
+                        'id': str(uuid.uuid4()),
+                        'type': 'message',
+                        'role': 'assistant',
+                        'model': model,
+                        'content': [
+                            {'type': 'text', 'text': blocked_message}
+                        ],
+                        'stop_reason': 'end_turn',
+                        'stop_sequence': None,
+                        'usage': {'input_tokens': 0, 'output_tokens': 0}
+                        }).encode('utf-8')
                 blocked_message_body = _create_blocked_response_streaming_body(response_content)
                 if request_id is None:
                     request_id = str(uuid.uuid4())
@@ -323,6 +346,14 @@ def _set_llama_span_attributes(span, request_body, response_body):
     _set_span_attribute(span, SpanAttributes.LLM_TOP_P, request_body.get("top_p"))
     _set_span_attribute(span, SpanAttributes.LLM_TEMPERATURE, request_body.get("temperature"))
     _set_span_attribute(span, SpanAttributes.LLM_REQUEST_MAX_TOKENS, request_body.get("max_gen_len"))
+
+    if response_body:
+        prompt_tokens = response_body.get("prompt_token_count")
+        completion_tokens = response_body.get("generation_token_count")
+        total_tokens = prompt_tokens + completion_tokens
+        _set_span_attribute(span, SpanAttributes.LLM_USAGE_PROMPT_TOKENS, prompt_tokens)
+        _set_span_attribute(span, SpanAttributes.LLM_USAGE_COMPLETION_TOKENS, completion_tokens)
+        _set_span_attribute(span, SpanAttributes.LLM_USAGE_TOTAL_TOKENS, total_tokens)
 
     if should_send_prompts():
         _set_span_attribute(span, f"{SpanAttributes.LLM_PROMPTS}.0.user", request_body.get("prompt"))
