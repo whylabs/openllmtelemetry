@@ -1,2 +1,2 @@
 streamlit==1.31.0
-openllmtelemetry[openai]==0.0.1b15
+openllmtelemetry[openai]>=0.0.1b15

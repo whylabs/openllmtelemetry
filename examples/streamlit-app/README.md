@@ -12,7 +12,7 @@ We have put together a `.env` file containing all relevant environment variables
 With those checked out, make sure you correctly fill in the `.env` file on this package and set them up on your environment, by running: 
 
 ```sh
-set -a && source .env && set +a
+set -a && source local.env && set +a
 ```
 
 ## Getting started

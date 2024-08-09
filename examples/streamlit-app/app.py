@@ -52,16 +52,14 @@ def run_app():
     if "messages" not in st.session_state:
         st.session_state.messages = []
     if "context" not in st.session_state:
-        st.session_state.context = [{"role": "system",
-                                     "content": """
-                                You are a helpful customer service chatbot. You strive to make customer happy. Here are 
-                                the topics you can discuss:
-                                - Shipping time
-                                - Order status
-                                - Returns links to policy documents
-                                - Product information
-                                - Shipping time
-                                """}]
+        with open('./examples/system-message.txt', 'r') as file:
+            system_message = file.read()
+            st.session_state.context = [
+                {
+                    "role": "system",
+                    "content": system_message,
+                }
+            ]
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
