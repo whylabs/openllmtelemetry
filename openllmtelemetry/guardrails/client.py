@@ -1,6 +1,8 @@
 import logging
 import os
 import time
+from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 from httpx import Timeout
@@ -14,14 +16,31 @@ from whylogs_container_client.models.run_options import RunOptions
 
 from openllmtelemetry.version import __version__
 
-_SERVER_SIDE_TRACE_ENABLED = "x-wls-sst"
-
-_SERVER_SIDE_VERSION_CONSTRAINT = "x-wls-verconstr"
-
 LOGGER = logging.getLogger(__name__)
 _VERSION_CHECK_DEADLINE = None
 _VERSION_CHECK_FREQUENCY_SECONDS = os.environ.get("VERSION_CHECK_FREQUENCY_SECONDS", 60)
 _VERSION = versions.PypiVersion(__version__)
+
+
+class ServerSideHeaders(str, Enum):
+    TRACE_ENABLED = "x-wls-sst"
+    VERSION_CONSTRAINT = "x-wls-verconstr"
+    VERSION = "x-wls-version"
+
+
+@dataclass
+class ClientEvaluationResult:
+    result: Optional[EvaluationResult] = None
+    sst_enabled: bool = False
+    service_version: Optional[str] = None
+    skipped: bool = False
+    error: bool = False
+
+
+def pass_otel_context(client: AuthenticatedClient) -> AuthenticatedClient:
+    headers = dict()
+    inject(headers)
+    return client.with_headers(headers)
 
 
 class GuardrailsApi(object):
@@ -54,34 +73,39 @@ class GuardrailsApi(object):
             timeout=Timeout(timeout, read=timeout),  # type: ignore
         )  # type: ignore
 
-    def eval_prompt(self, prompt: str) -> Optional[EvaluationResult]:
+    def eval_prompt(self, prompt: str) -> ClientEvaluationResult:
         dataset_id = self._dataset_id
         LOGGER.info(f"Evaluate prompt for dataset_id: {dataset_id}")
         if dataset_id is None:
             LOGGER.warning("GuardRail eval_prompt requires a dataset_id but dataset_id is None.")
-            return None
+            return ClientEvaluationResult(skipped=True)
+
         profiling_request = LLMValidateRequest(prompt=prompt, dataset_id=dataset_id)
 
-        headers = dict()
-        inject(headers)
-
-        client = self._client.with_headers(headers)
-        res = evaluate.sync_detailed(client=client, body=profiling_request, log=self._log)
-        sst_enabled = res.headers.get(_SERVER_SIDE_TRACE_ENABLED) is not None
+        # important: passing headers to upstream
+        client = pass_otel_context(self._client)
+        try:
+            res = evaluate.sync_detailed(client=client, body=profiling_request, log=self._log)
+        except:  # noqa
+            return ClientEvaluationResult(error=True)
+        sst_enabled = res.headers.get(ServerSideHeaders.TRACE_ENABLED) is not None
+        service_version = res.headers.get(ServerSideHeaders.VERSION) is not None
         global _VERSION_CHECK_DEADLINE
 
         should_check = _VERSION_CHECK_DEADLINE is None or _VERSION_CHECK_DEADLINE < time.time()
         if should_check:
-            vr_constr = res.headers.get(_SERVER_SIDE_VERSION_CONSTRAINT)
+            vr_constr = res.headers.get(ServerSideHeaders.VERSION_CONSTRAINT)
 
             _VERSION_CHECK_DEADLINE = time.time() + 60
             if vr_constr is None:
-                LOGGER.warning(f"GuardRails service did not provide a version range (missing {_SERVER_SIDE_VERSION_CONSTRAINT} header.")
+                LOGGER.warning(
+                    f"GuardRails service did not provide a version range (missing {ServerSideHeaders.VERSION_CONSTRAINT} header."
+                )
             else:
                 ver_constr = version_range.PypiVersionRange.from_native(vr_constr)
                 if _VERSION not in ver_constr:
                     LOGGER.warning(
-                        f"OpenLLMTelemetry version not matching supported versions by GuardRails service. Current: {_VERSION}. Expected: {ver_constr}. Unexpected behaviors might arise."
+                        f"OpenLLMTelemetry version not matching supported versions by GuardRails service. Current: {ServerSideHeaders.VERSION}. Expected: {ver_constr}. Unexpected behaviors might arise."
                     )
 
         result = res.parsed
@@ -89,10 +113,16 @@ class GuardrailsApi(object):
         if isinstance(result, HTTPValidationError):
             # TODO: log out the client version and the API endpoint version
             LOGGER.warning(f"GuardRail request validation failure detected. result was: {res}.")
-            return None
+            return ClientEvaluationResult(result=None, sst_enabled=sst_enabled, service_version=service_version, error=True)
         # LOGGER.debug(f"Done calling eval_prompt on prompt: {prompt} -> res: {res}")
-        result.additional_properties["server_side_trace_enabled"] = sst_enabled
-        return result
+        # result.additional_properties["server_side_trace_enabled"] = sst_enabled
+        return ClientEvaluationResult(result=res.parsed, sst_enabled=sst_enabled, service_version=service_version)
+
+    def pass_otel_context(self):
+        headers = dict()
+        inject(headers)
+        client = self._client.with_headers(headers)
+        return client
 
     def eval_response(self, prompt: str, response: str) -> Optional[EvaluationResult]:
         # nested array so you can model a metric requiring multiple inputs. That line says "only run the metrics

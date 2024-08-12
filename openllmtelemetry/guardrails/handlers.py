@@ -188,37 +188,43 @@ def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Opti
         with _create_guardrail_span(tracer, "guardrails.request") as span:
             # noinspection PyBroadException
             try:
-                evaluation_result = guardrails_api.eval_prompt(prompt)
-                LOGGER.debug("Prompt evaluated: %s", evaluation_result)
-                if evaluation_result:
+                r = guardrails_api.eval_prompt(prompt)
+                LOGGER.debug("Prompt evaluated: %s", r)
+                if r.skipped:
+                    span.set_attribute("whylabs.guardrails.skipped", True)
+                if r.sst_enabled:
+                    span.set_attribute("whylabs.guardrails.sst_enabled", True)
+                if r.service_version:
+                    span.set_attribute("whylabs.guardrails.service_version", r.service_version)
+                if r.result:
                     # The underlying API can handle batches of inputs, so we always get a list of metrics
-                    metrics = evaluation_result.metrics[0]
+                    metrics = r.result.metrics[0]
 
                     for k in metrics.additional_keys:
                         if metrics.additional_properties[k] is not None:
                             span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{k}", metrics.additional_properties[k])
-                    scores = evaluation_result.scores
+                    scores = r.scores
                     if scores and len(scores) > 0:
                         score_dictionary = scores[0].additional_properties
                         for score_key in score_dictionary:
                             if score_dictionary[score_key] is not None:
                                 slim_score_key = score_key.replace("response.score.", "").replace("prompt.score.", "")
                                 span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{slim_score_key}", score_dictionary[score_key])
-                    eval_metadata = evaluation_result.metadata.additional_properties
+                    eval_metadata = r.result.metadata.additional_properties
                     if eval_metadata:
                         for metadata_key in eval_metadata:
                             span.set_attribute(f"guardrails.api.{metadata_key}", eval_metadata[metadata_key])
                     tags = []
-                    if evaluation_result.action.action_type == "block":
+                    if r.action.action_type == "block":
                         tags.append("BLOCKED")
-                        if evaluation_result.validation_results:
-                            generate_event(evaluation_result.validation_results.report, eval_metadata, span)
+                        if r.validation_results:
+                            generate_event(r.validation_results.report, eval_metadata, span)
 
-                    for r in evaluation_result.validation_results.report:
+                    for r in r.result.validation_results.report:
                         tags.append(r.metric.replace("response.score.", "").replace("prompt.score.", ""))
                     if len(tags) > 0:
                         span.set_attribute("langkit.insights.tags", tags)
-                return evaluation_result
+                return r
             except Exception as e:  # noqa: E722
                 LOGGER.warning("Error evaluating prompt")
                 logging.exception(f"Error evaluating prompt: {e}")
