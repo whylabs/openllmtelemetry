@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "OpenLLMTelemetry"
-version = "0.0.1.b16"
+version = "0.0.1.b17"
 description = "End-to-end observability with built-in security guardrails."
 authors = ["WhyLabs.ai <support@whylabs.ai>"]
 license = "Apache-2.0"
