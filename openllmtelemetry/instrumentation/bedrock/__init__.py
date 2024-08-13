@@ -185,8 +185,8 @@ def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
                 else:
                     content = f"Response blocked by WhyLabs: {eval_result.action.block_message}"
                 blocked_message = os.environ.get("GUARDRAILS_BLOCKED_MESSAGE_OVERRIDE", content)
-                if vendor == "amazon":
-                    response_content = json.dumps({
+                # default to Amazon's response format
+                response_content = json.dumps({
                             "inputTextTokenCount": 0,
                             "results": [
                                 {
@@ -196,7 +196,7 @@ def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
                                 }
                             ]
                         }).encode('utf-8')
-                elif vendor == "meta":
+                if vendor == "meta":
                      response_content = json.dumps({
                         "generation": blocked_message,
                         "prompt_token_count": 0,
