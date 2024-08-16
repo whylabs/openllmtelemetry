@@ -2,6 +2,7 @@ import os
 import logging
 
 from openai import OpenAI
+import openllmtelemetry.version
 import streamlit as st
 import openllmtelemetry
 
@@ -13,12 +14,14 @@ PROMPT_EXAMPLES_FOLDER = "./examples/demo"
 
 @st.cache_resource
 def instrument(model_id):
-    openllmtelemetry.instrument(application_name="chatbot-guardrails", dataset_id=model_id)
+    openllmtelemetry.instrument(service_name="chatbot-guardrails", dataset_id=model_id)
 
 
 def run_app():
     logging.getLogger().setLevel(logging.DEBUG)
     logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger()
+    logger.info(f"openllmtelemetry version is: {openllmtelemetry.version.__version__}")
 
     instrument(os.environ["WHYLABS_DEFAULT_DATASET_ID"])
 
