@@ -31,7 +31,8 @@ from opentelemetry.instrumentation.utils import (
     _SUPPRESS_INSTRUMENTATION_KEY,
     unwrap,
 )
-from opentelemetry.trace import SpanKind, get_tracer
+from opentelemetry.trace import SpanKind, get_tracer, set_span_in_context
+
 from whylogs_container_client.models import EvaluationResult
 from wrapt import wrap_function_wrapper
 
@@ -44,6 +45,7 @@ from openllmtelemetry.version import __version__
 LOGGER = logging.getLogger(__name__)
 
 _instruments = ("boto3 >= 1.28.57",)
+SPAN_TYPE = "span.type"
 
 WRAPPED_METHODS = [{"package": "botocore.client", "object": "ClientCreator", "method": "create_client"}]
 
@@ -87,14 +89,20 @@ def _create_blocked_response_streaming_body(content):
 def _handle_request(guardrails_api: Optional[GuardrailsApi], prompt: str, span):
     evaluation_results = None
     if prompt is not None:
-        evaluation_results = guardrails_api.eval_prompt(prompt) if guardrails_api is not None else None
+        guardrail_response = guardrails_api.eval_prompt(prompt, context=set_span_in_context(span)) if guardrails_api is not None else None
+        if hasattr(guardrail_response, "parsed"):
+            evaluation_results = getattr(guardrail_response, "parsed")
+        else:
+            evaluation_results = guardrail_response
     if evaluation_results and span is not None:
         LOGGER.debug(evaluation_results)
+        metrics = evaluation_results
         metrics = evaluation_results.metrics[0]
         for k in metrics.additional_keys:
             if metrics.additional_properties[k] is not None:
                 metric_value = metrics.additional_properties[k]
-                span.set_attribute(f"langkit.metrics.{k}", metric_value)
+                if not str(k).endswith(".redacted"):
+                    span.set_attribute(f"langkit.metrics.{k}", metric_value)
     return evaluation_results
 
 
@@ -117,9 +125,13 @@ def _handle_response(secure_api: Optional[GuardrailsApi], prompt, response, span
     # LLama 2/3 instruct/chat
     elif "generation" in response:
         response_text = response.get("generation")
-
+    response_metrics = None
     if response_text is not None:
-        response_metrics = secure_api.eval_response(prompt=prompt, response=response_text) if secure_api is not None else None
+        guardrail_response = secure_api.eval_response(prompt=prompt, response=response_text, context=set_span_in_context(span)) if secure_api is not None else None
+        if hasattr(guardrail_response, "parsed"):
+            response_metrics = getattr(guardrail_response, "parsed")
+        else:
+            response_metrics = guardrail_response
     if response_metrics:
         LOGGER.debug(response_metrics)
         metrics = response_metrics.metrics[0]
@@ -127,7 +139,8 @@ def _handle_response(secure_api: Optional[GuardrailsApi], prompt, response, span
         for k in metrics.additional_keys:
             if metrics.additional_properties[k] is not None:
                 metric_value = metrics.additional_properties[k]
-                span.set_attribute(f"langkit.metrics.{k}", metric_value)
+                if not str(k).endswith(".redacted"):
+                    span.set_attribute(f"langkit.metrics.{k}", metric_value)
     else:
         LOGGER.debug("response metrics is none, skipping")
 
@@ -152,7 +165,9 @@ def _wrap(tracer, secure_api: GuardrailsApi, to_wrap, wrapped, instance, args, k
 def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
     @wraps(fn)
     def with_instrumentation(*args, **kwargs):
-        with tracer.start_as_current_span("interaction", kind=SpanKind.CLIENT) as span:
+        with tracer.start_as_current_span(name="interaction",
+                                          kind=SpanKind.CLIENT,
+                                          attributes={SpanAttributes.SPAN_TYPE: "interaction"}) as span:
             request_body = json.loads(kwargs.get("body"))
             (vendor, model) = kwargs.get("modelId").split(".")
             is_titan_text = model.startswith("titan-text-")
@@ -281,8 +296,9 @@ def _set_amazon_titan_span_attributes(span, request_body, response_body):
         if response_body:
             results = response_body.get("results")
             total_tokens = results[0].get("tokenCount") if results else None
-
+            completions_tokens = max(total_tokens - input_token_count, 0)
             _set_span_attribute(span, SpanAttributes.LLM_USAGE_TOTAL_TOKENS, total_tokens)
+            _set_span_attribute(span, SpanAttributes.LLM_USAGE_COMPLETION_TOKENS, completions_tokens)
 
         _set_span_attribute(span, SpanAttributes.LLM_USAGE_PROMPT_TOKENS, input_token_count)
 

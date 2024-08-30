@@ -43,8 +43,6 @@ from openllmtelemetry.instrumentation.openai.shared import (
 from openllmtelemetry.instrumentation.openai.utils import _with_tracer_wrapper, is_openai_v1
 from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
 
-SPAN_TYPE = "span.type"
-
 SPAN_NAME = "openai.chat"
 LLM_REQUEST_TYPE = LLMRequestTypeValues.CHAT
 

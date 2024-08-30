@@ -11,7 +11,6 @@ from openllmtelemetry.guardrails import GuardrailsApi
 from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
 
 LOGGER = logging.getLogger(__name__)
-SPAN_TYPE = "span.type"
 
 SPAN_NAME = "openai.chat"
 
@@ -94,7 +93,7 @@ def sync_wrapper(
         with tracer.start_span(
             completion_span_name,
             kind=SpanKind.CLIENT,
-            attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SPAN_TYPE: "completion"},
+            attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SpanAttributes.SPAN_TYPE: "completion"},
         ) as span:
             prompt_attributes_setter(span)
             response, is_streaming = llm_caller(span)
@@ -121,7 +120,7 @@ def start_span(request_type, tracer):
     return tracer.start_as_current_span(
         "interaction",
         kind=SpanKind.CLIENT,
-        attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SPAN_TYPE: "interaction"},
+        attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SpanAttributes.SPAN_TYPE: "interaction"},
     )
 
 
@@ -129,7 +128,7 @@ def _create_guardrail_span(tracer, name="guardrails.request"):
     return tracer.start_span(
         name,
         kind=SpanKind.CLIENT,
-        attributes={SPAN_TYPE: "guardrails"},
+        attributes={SpanAttributes.SPAN_TYPE: "guardrails"},
     )
 
 
@@ -167,7 +166,7 @@ async def async_wrapper(
         with tracer.start_as_current_span(
             SPAN_NAME,
             kind=SpanKind.CLIENT,
-            attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SPAN_TYPE: "completion"},
+            attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SpanAttributes.SPAN_TYPE: "completion"},
         ) as span:
             prompt_attributes_setter(span)
             response = await llm_caller(span)
@@ -185,6 +184,11 @@ def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Opti
             # noinspection PyBroadException
             try:
                 evaluation_result = guardrails_api.eval_prompt(prompt)
+                if hasattr(evaluation_result, "parsed"):
+                    parsed_results = getattr(evaluation_result, "parsed", None)
+                    if parsed_results is not None:
+                        evaluation_result = parsed_results
+                
                 LOGGER.debug("Prompt evaluated: %s", evaluation_result)
                 if evaluation_result:
                     # The underlying API can handle batches of inputs, so we always get a list of metrics
@@ -192,7 +196,8 @@ def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Opti
 
                     for k in metrics.additional_keys:
                         if metrics.additional_properties[k] is not None:
-                            span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{k}", metrics.additional_properties[k])
+                            if not str(k).endswith(".redacted"):
+                                span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{k}", metrics.additional_properties[k])
                     scores = evaluation_result.scores
                     if scores and len(scores) > 0:
                         score_dictionary = scores[0].additional_properties
@@ -238,12 +243,18 @@ def _guard_response(guardrails, prompt, response, tracer):
                 result: Optional[EvaluationResult] = guardrails.eval_response(prompt=prompt, response=response)
                 if result:
                     LOGGER.debug("Response evaluated: %s", result)
+                    if hasattr(result, "parsed"):
+                        parsed_results = getattr(result, "parsed", None)
+                        if parsed_results is not None:
+                            result = parsed_results
+
                     # The underlying API can handle batches of inputs, so we always get a list of metrics
                     metrics = result.metrics[0]
 
                     for k in metrics.additional_keys:
                         if metrics.additional_properties[k] is not None:
-                            span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{k}", metrics.additional_properties[k])
+                            if not str(k).endswith(".redacted"):
+                                span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{k}", metrics.additional_properties[k])
 
                     scores = result.scores
                     if scores and len(scores) > 0:
