@@ -1,20 +1,17 @@
-from ast import List
 import logging
 import os
-from enum import Enum
-from typing import Callable, Optional
+from typing import Optional
 
 import whylogs_container_client.api.llm.evaluate as Evaluate
 from httpx import Timeout
-from opentelemetry.propagate import inject
 from opentelemetry.context.context import Context
+from opentelemetry.propagate import inject
 from whylogs_container_client import AuthenticatedClient
 from whylogs_container_client.models import EvaluationResult, HTTPValidationError, LLMValidateRequest
 from whylogs_container_client.models.metric_filter_options import MetricFilterOptions
 from whylogs_container_client.models.run_options import RunOptions
 
 from openllmtelemetry.content_id import ContentIdProvider
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -85,29 +82,31 @@ class GuardrailsApi(object):
             LOGGER.warning("GuardRail eval_prompt requires a dataset_id but dataset_id is None.")
             return None
         content_id = self._generate_content_id([prompt])
+
         profiling_request = LLMValidateRequest(prompt=prompt, dataset_id=dataset_id, id=content_id)
         client = pass_otel_context(self._client, context=context)
-
+        parsed = None
         try:
             res = Evaluate.sync_detailed(client=client, body=profiling_request, log=self._log)
+            parsed = res.parsed
         except Exception as error:  # noqa
             LOGGER.warning(f"GuardRail eval_prompt error: {error}")
+            if res and hasattr(res, "headers"):
+                version_constraint = res.headers.get('whylabssecureheaders.client_version_constraint')
+                LOGGER.warning(f"GuardRail requires whylabs-container-client version: {version_constraint}")
             return None
 
-        if isinstance(res, HTTPValidationError):
+        if isinstance(parsed, HTTPValidationError):
             # TODO: log out the client version and the API endpoint version
             LOGGER.warning(f"GuardRail request validation failure detected. result was: {res} Possible version mismatched.")
             return None
 
         LOGGER.debug(f"Done calling eval_prompt on prompt: {prompt} -> res: {res}")
-        if self._eval_callback is not None:
-            try:
-                self._eval_callback(evaluation_result=res, prompt=prompt, response=None)
-            except Exception as error:  # noqa
-                LOGGER.warning(f"GuardRail eval_prompt callback error: {error}")
+
         return res
 
-    def eval_response(self, prompt: str, response: str, context: Optional[Context] = None) -> Optional[EvaluationResult]:
+    def eval_response(self, prompt: str, response: str,
+                      context: Optional[Context] = None) -> Optional[EvaluationResult]:
         # nested array so you can model a metric requiring multiple inputs. That line says "only run the metrics
         # that require response OR (prompt and response)", which would cover the input similarity metric
         metric_filter_option = MetricFilterOptions(
@@ -118,29 +117,32 @@ class GuardrailsApi(object):
             LOGGER.warning("GuardRail eval_response requires a dataset_id but dataset_id is None.")
             return None
         content_id = self._generate_content_id([prompt, response])
+
         profiling_request = LLMValidateRequest(
             prompt=prompt,
             response=response,
             dataset_id=dataset_id,
             id=content_id,
-            options=RunOptions(metric_filter=metric_filter_option),
+            options=RunOptions(metric_filter=metric_filter_option)
         )
         client = pass_otel_context(self._client, context=context)
         res = None
+        parsed = None
         try:
             res = Evaluate.sync_detailed(client=client, body=profiling_request, log=self._log)
+            parsed = res.parsed
         except Exception as error:  # noqa
             LOGGER.warning(f"GuardRail eval_response error: {error}")
+            if res and hasattr(res, "headers"):
+                version_constraint = res.headers.get('whylabssecureheaders.client_version_constraint')
+                LOGGER.warning(f"GuardRail requires whylabs-container-client version: {version_constraint}")
+
             return None
-        if isinstance(res, HTTPValidationError):
+        if isinstance(parsed, HTTPValidationError):
             LOGGER.warning(f"GuardRail request validation failure detected. Possible version mismatched: {res}")
             return None
         LOGGER.debug(f"Done calling eval_response on [prompt: {prompt}, response: {response}] -> res: {res}")
-        if self._eval_callback is not None:
-            try:
-                self._eval_callback(evaluation_result=res, prompt=prompt, response=response)
-            except Exception as error:  # noqa
-                LOGGER.warning(f"GuardRail eval_prompt callback error: {error}")
+
         return res
 
     def eval_chunk(self, chunk: str, context: Optional[Context] = None) -> Optional[EvaluationResult]:

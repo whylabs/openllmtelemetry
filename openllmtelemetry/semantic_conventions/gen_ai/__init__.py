@@ -57,6 +57,9 @@ class SpanAttributes:
     VECTOR_DB_VENDOR = "vector_db.vendor"
     VECTOR_DB_QUERY_TOP_K = "vector_db.query.top_k"
 
+    # WhyLabs
+    SPAN_TYPE = "span.type"
+
 
 class Events(Enum):
     VECTOR_DB_QUERY_EMBEDDINGS = "vector_db.query.embeddings"

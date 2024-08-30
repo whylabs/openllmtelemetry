@@ -11,7 +11,6 @@ from openllmtelemetry.guardrails import GuardrailsApi
 from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
 
 LOGGER = logging.getLogger(__name__)
-SPAN_TYPE = "span.type"
 
 SPAN_NAME = "openai.chat"
 
@@ -94,7 +93,7 @@ def sync_wrapper(
         with tracer.start_span(
             completion_span_name,
             kind=SpanKind.CLIENT,
-            attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SPAN_TYPE: "completion"},
+            attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SpanAttributes.SPAN_TYPE: "completion"},
         ) as span:
             prompt_attributes_setter(span)
             response, is_streaming = llm_caller(span)
@@ -121,7 +120,7 @@ def start_span(request_type, tracer):
     return tracer.start_as_current_span(
         "interaction",
         kind=SpanKind.CLIENT,
-        attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SPAN_TYPE: "interaction"},
+        attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SpanAttributes.SPAN_TYPE: "interaction"},
     )
 
 
@@ -129,7 +128,7 @@ def _create_guardrail_span(tracer, name="guardrails.request"):
     return tracer.start_span(
         name,
         kind=SpanKind.CLIENT,
-        attributes={SPAN_TYPE: "guardrails"},
+        attributes={SpanAttributes.SPAN_TYPE: "guardrails"},
     )
 
 
@@ -167,7 +166,7 @@ async def async_wrapper(
         with tracer.start_as_current_span(
             SPAN_NAME,
             kind=SpanKind.CLIENT,
-            attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SPAN_TYPE: "completion"},
+            attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SpanAttributes.SPAN_TYPE: "completion"},
         ) as span:
             prompt_attributes_setter(span)
             response = await llm_caller(span)

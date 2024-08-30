@@ -45,6 +45,7 @@ from openllmtelemetry.version import __version__
 LOGGER = logging.getLogger(__name__)
 
 _instruments = ("boto3 >= 1.28.57",)
+SPAN_TYPE = "span.type"
 
 WRAPPED_METHODS = [{"package": "botocore.client", "object": "ClientCreator", "method": "create_client"}]
 
@@ -164,7 +165,9 @@ def _wrap(tracer, secure_api: GuardrailsApi, to_wrap, wrapped, instance, args, k
 def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
     @wraps(fn)
     def with_instrumentation(*args, **kwargs):
-        with tracer.start_as_current_span("interaction", kind=SpanKind.CLIENT) as span:
+        with tracer.start_as_current_span(name="interaction",
+                                          kind=SpanKind.CLIENT,
+                                          attributes={SpanAttributes.SPAN_TYPE: "interaction"}) as span:
             request_body = json.loads(kwargs.get("body"))
             (vendor, model) = kwargs.get("modelId").split(".")
             is_titan_text = model.startswith("titan-text-")
