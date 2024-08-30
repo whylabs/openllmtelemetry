@@ -33,7 +33,7 @@ def instrument(
     service_name: Optional[str] = None,
     disable_batching: bool = False,
     debug: bool = False,
-    content_id_provider: ContentIdProvider = sha256_content_id_provider
+    content_id_provider: ContentIdProvider = sha256_content_id_provider,
 ) -> Tracer:
     global _tracer_cache, _last_added_tracer
 
