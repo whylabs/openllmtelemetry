@@ -1,0 +1,7 @@
+Here's my order details
+
+Address
+- Name: Johnathan Edward Doe.
+- Email: john.doe@example.com.
+- Phone Number: (123) 456-7890.
+- Order number: #1234567890.
