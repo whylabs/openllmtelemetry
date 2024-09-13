@@ -23,7 +23,7 @@ import os
 import io
 import uuid
 from functools import wraps
-from typing import Collection, Optional
+from typing import Any, Collection, Optional
 
 from opentelemetry import context as context_api
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
@@ -32,6 +32,7 @@ from opentelemetry.instrumentation.utils import (
     unwrap,
 )
 from opentelemetry.trace import SpanKind, get_tracer, set_span_in_context
+from opentelemetry.trace.span import Span
 
 from whylogs_container_client.models import EvaluationResult
 from wrapt import wrap_function_wrapper
@@ -53,11 +54,10 @@ def should_send_prompts():
     return (os.getenv("TRACE_PROMPT_AND_RESPONSE") or "false").lower() == "true" or context_api.get_value("override_enable_content_tracing")
 
 
-def _set_span_attribute(span, name, value):
+def _set_span_attribute(span: Span, name: str, value: Any) -> None:
     if value is not None:
         if value != "":
             span.set_attribute(name, value)
-    return
 
 
 def _with_tracer_wrapper(func):
@@ -86,7 +86,7 @@ def _create_blocked_response_streaming_body(content):
     return ReusableStreamingBody(content_stream, content_length)
 
 
-def _handle_request(guardrails_api: Optional[GuardrailsApi], prompt: str, span):
+def _handle_request(guardrails_api: Optional[GuardrailsApi], prompt: str, span: Span):
     evaluation_results = None
     if prompt is not None:
         guardrail_response = guardrails_api.eval_prompt(prompt, context=set_span_in_context(span)) if guardrails_api is not None else None
