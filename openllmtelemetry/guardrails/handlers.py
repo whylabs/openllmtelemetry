@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, List, Optional, Union
 
-from opentelemetry.trace import Span, SpanKind
+from opentelemetry.trace import Span, SpanKind, set_span_in_context
 from opentelemetry.util.types import Attributes
 from whylogs_container_client.models import EvaluationResult
 from whylogs_container_client.models.validation_failure import ValidationFailure
@@ -183,7 +183,7 @@ def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Opti
         with _create_guardrail_span(tracer, "guardrails.request") as span:
             # noinspection PyBroadException
             try:
-                evaluation_result = guardrails_api.eval_prompt(prompt)
+                evaluation_result = guardrails_api.eval_prompt(prompt, context=set_span_in_context(span))
                 if hasattr(evaluation_result, "parsed"):
                     parsed_results = getattr(evaluation_result, "parsed", None)
                     if parsed_results is not None:
@@ -240,7 +240,7 @@ def _guard_response(guardrails, prompt, response, tracer):
         with _create_guardrail_span(tracer, "guardrails.response") as span:
             # noinspection PyBroadException
             try:
-                result: Optional[EvaluationResult] = guardrails.eval_response(prompt=prompt, response=response)
+                result: Optional[EvaluationResult] = guardrails.eval_response(prompt=prompt, response=response, context=set_span_in_context(span))
                 if result:
                     LOGGER.debug("Response evaluated: %s", result)
                     if hasattr(result, "parsed"):
