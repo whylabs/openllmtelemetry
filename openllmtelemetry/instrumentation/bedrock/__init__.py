@@ -17,10 +17,10 @@ Changes made: customization for WhyLabs
 
 Original source: openllmetry: https://github.com/traceloop/openllmetry
 """
+import io
 import json
 import logging
 import os
-import io
 import uuid
 from functools import wraps
 from typing import Any, Collection, Optional
@@ -33,7 +33,6 @@ from opentelemetry.instrumentation.utils import (
 )
 from opentelemetry.trace import SpanKind, get_tracer, set_span_in_context
 from opentelemetry.trace.span import Span
-
 from whylogs_container_client.models import EvaluationResult
 from wrapt import wrap_function_wrapper
 
@@ -89,7 +88,7 @@ def _create_blocked_response_streaming_body(content):
 def _handle_request(guardrails_api: Optional[GuardrailsApi], prompt: str, span: Span):
     evaluation_results = None
     if prompt is not None:
-        guardrail_response = guardrails_api.eval_prompt(prompt, context=set_span_in_context(span)) if guardrails_api is not None else None
+        guardrail_response = guardrails_api.eval_prompt(prompt, context=set_span_in_context(span), span=span) if guardrails_api is not None else None
         if hasattr(guardrail_response, "parsed"):
             evaluation_results = getattr(guardrail_response, "parsed")
         else:
@@ -127,7 +126,7 @@ def _handle_response(secure_api: Optional[GuardrailsApi], prompt, response, span
         response_text = response.get("generation")
     response_metrics = None
     if response_text is not None:
-        guardrail_response = secure_api.eval_response(prompt=prompt, response=response_text, context=set_span_in_context(span)) if secure_api is not None else None
+        guardrail_response = secure_api.eval_response(prompt=prompt, response=response_text, context=set_span_in_context(span), span=span) if secure_api is not None else None
         if hasattr(guardrail_response, "parsed"):
             response_metrics = getattr(guardrail_response, "parsed")
         else:
