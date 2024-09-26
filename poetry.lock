@@ -197,6 +197,17 @@ urllib3 = [
 crt = ["awscrt (==0.21.5)"]
 
 [[package]]
+name = "bump2version"
+version = "1.0.1"
+description = "Version-bump your software with a single command!"
+optional = false
+python-versions = ">=3.5"
+files = [
+    {file = "bump2version-1.0.1-py2.py3-none-any.whl", hash = "sha256:37f927ea17cde7ae2d7baf832f8e80ce3777624554a653006c9144f8017fe410"},
+    {file = "bump2version-1.0.1.tar.gz", hash = "sha256:762cb2bfad61f4ec8e2bdf452c7c267416f8c70dd9ecb1653fd0bbb01fa936e6"},
+]
+
+[[package]]
 name = "certifi"
 version = "2024.8.30"
 description = "Python package for providing Mozilla's CA Bundle."
@@ -2308,18 +2319,18 @@ files = [
 
 [[package]]
 name = "whylogs-container-client"
-version = "1.0.23"
-description = "A client library for accessing the whylogs python container"
+version = "2.0.2"
+description = "A client library for accessing FastAPI"
 optional = false
 python-versions = "<4.0,>=3.8"
 files = [
-    {file = "whylogs_container_client-1.0.23-py3-none-any.whl", hash = "sha256:febba05559d92ffc76f85dd9e0a3de8c885c6a03e46f7d479f3d9231f5ebd824"},
-    {file = "whylogs_container_client-1.0.23.tar.gz", hash = "sha256:923b161707acb082ada1fd6452620c312e475c177249aaeda2a0e7aba27929d3"},
+    {file = "whylogs_container_client-2.0.2-py3-none-any.whl", hash = "sha256:06ba1360bc4b064f9664761f7e5d13845f06dd1f08ddf931f5d11b8531bed5b9"},
+    {file = "whylogs_container_client-2.0.2.tar.gz", hash = "sha256:59e18e3a063f4ac4704517e0b619d61b51c3f91b0f0776428fe98db2189ea05f"},
 ]
 
 [package.dependencies]
 attrs = ">=21.3.0"
-httpx = ">=0.20.0,<0.26.0"
+httpx = ">=0.20.0,<0.28.0"
 python-dateutil = ">=2.8.0,<3.0.0"
 
 [[package]]
@@ -2427,4 +2438,4 @@ openai = ["openai"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "ab1ffb45dd9802239c6f850373461e5f1cc8681730c31f8620b2ca6e34de3300"
+content-hash = "6c94306eb0f0b58346ec240d605286609617b4f55ae332674470627618a15ad0"

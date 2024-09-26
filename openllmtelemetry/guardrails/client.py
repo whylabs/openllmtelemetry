@@ -1,7 +1,7 @@
 import logging
 import os
 from importlib.metadata import version
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import whylogs_container_client.api.llm.evaluate as Evaluate
 from httpx import Timeout
@@ -88,26 +88,35 @@ class GuardrailsApi(object):
                 LOGGER.warning(f"Error generating the content_id of on the prompt, error: {error}")
         return content_id
 
-    def _check_version_headers(self, res: Optional[Response[EvaluationResult | HTTPValidationError]]) -> bool:
+    def _check_version_headers(self, res: Optional[Response[Union[EvaluationResult, HTTPValidationError]]],
+                               span: Optional[Span] = None) -> bool:
         if not res:
             LOGGER.warning(f"GuardRail endpoint response is empty: {res}")
+            if span:
+                span.set_attribute("guardrail.response", "empty")
             return False
         if hasattr(res, "headers"):
             version_constraint = None
             for version_constraint_header_name in _KNOWN_VERSION_CONSTRAINT_HEADER_NAMES:
                 if version_constraint_header_name in res.headers:
                     version_constraint = res.headers.get(version_constraint_header_name)
+                    if span:
+                        span.set_attribute("guardrail.headers." + version_constraint_header_name, str(version_constraint))
                     break
             container_version = None
             for version_header_name in _KNOWN_VERSION_HEADER_NAMES:
                 if version_header_name in res.headers:
                     container_version = res.headers.get(version_header_name)
+                    if span:
+                        span.set_attribute("guardrail.headers." + version_header_name, str(container_version))
                     break
 
             if version_constraint is None:
                 LOGGER.warning("No version constraint found in header from GuardRail endpoint response, "
                                "upgrade to whylabs-container-python container version 2.0.0 or later to "
                                "enable version constraint checks to pass and avoid this warning.")
+                if span:
+                    span.set_attribute("guardrail.response.version_constraint", "empty")
                 return False
             specifier = SpecifierSet(version_constraint)
             version = Version(self._whylogs_client_version)
@@ -116,14 +125,22 @@ class GuardrailsApi(object):
             if version in specifier:
                 LOGGER.debug(f"whylabs-container-client version: {self._whylogs_client_version} "
                              f"satisfies the GuardRail endpoints version constraint: {version_constraint}")
+                if span:
+                    span.set_attribute("guardrail.response.client_version_constraint", version_constraint)
+                    span.set_attribute("guardrail.response.client_version", str(version))
             else:
                 LOGGER.warning(f"GuardRail endpoint reports running version {container_version} and "
                                f"requires whylabs-container-client version: {version_constraint}, "
                                f"currently we have whylabs-container-client version: {self._whylogs_client_version}")
+                if span:
+                    span.set_attribute("guardrail.response.client_version_constraint", version_constraint)
+                    span.set_attribute("guardrail.response.client_version", str(version))
                 return False
 
             if container_version is None:
                 LOGGER.warning("No version header in GuardRail endpoint response, unknown compatibility.")
+                if span:
+                    span.set_attribute("guardrail.response.container_version", "empty")
                 return False
             client_specifier = SpecifierSet(_CONTAINER_VERSION_COMPATIBILITY_CONSTRAINT)
             guardrail_version = Version(container_version)
@@ -132,19 +149,28 @@ class GuardrailsApi(object):
             if guardrail_version in client_specifier:
                 LOGGER.debug(f"whylabs-container-python container GuardRail has version: {self._whylogs_client_version} "
                              f"which satisfies this package's version constraint: {version_constraint}")
+                if span:
+                    span.set_attribute("guardrail.response.container_client_version_constraint", str(_CONTAINER_VERSION_COMPATIBILITY_CONSTRAINT))
+                    span.set_attribute("guardrail.response.client_version", str(self._whylogs_client_version))
             else:
                 LOGGER.warning(f"whylabs-container-python container GuardRail has version: {guardrail_version} "
                                f"which fails this package's version constrain: {_CONTAINER_VERSION_COMPATIBILITY_CONSTRAINT}, "
                                f"upgrade the whylabs-container-python container to a version "
                                f"{_CONTAINER_VERSION_COMPATIBILITY_CONSTRAINT}")
+                if span:
+                    span.set_attribute("guardrail.response.container_version", str(guardrail_version))
+                    span.set_attribute("guardrail.container_version_constraint", _CONTAINER_VERSION_COMPATIBILITY_CONSTRAINT)
                 return False
             return True
         else:
             LOGGER.warning("GuardRail endpoint is missing or headers, response was: {res}")
-            return False
+            if span:
+                span.set_attribute("guardrail.response.headers", "empty: unknown compatibility.")
+        return False
 
     def eval_prompt(self, prompt: str,
-                    context: Optional[Context] = None) -> Optional[Response[EvaluationResult | HTTPValidationError]]:
+                    context: Optional[Context] = None,
+                    span: Optional[Span] = None) -> Optional[Response[Union[EvaluationResult, HTTPValidationError]]]:
         dataset_id = self._dataset_id
         LOGGER.info(f"Evaluate prompt for dataset_id: {dataset_id}")
         if dataset_id is None:
@@ -157,11 +183,11 @@ class GuardrailsApi(object):
         parsed = None
         try:
             res = Evaluate.sync_detailed(client=client, body=profiling_request, log=self._log)
-            self._check_version_headers(res)
+            self._check_version_headers(res, span)
             parsed = res.parsed
         except Exception as error:  # noqa
             LOGGER.warning(f"GuardRail eval_prompt error: {error}")
-            self._check_version_headers(res)
+            self._check_version_headers(res, span)
             return None
 
         if isinstance(parsed, HTTPValidationError):
@@ -175,7 +201,7 @@ class GuardrailsApi(object):
 
     def eval_response(self, prompt: str, response: str,
                       context: Optional[Context] = None,
-                      span: Optional[Span] = None) -> Optional[Response[EvaluationResult | HTTPValidationError]]:
+                      span: Optional[Span] = None) -> Optional[Response[Union[EvaluationResult, HTTPValidationError]]]:
         # nested array so you can model a metric requiring multiple inputs. That line says "only run the metrics
         # that require response OR (prompt and response)", which would cover the input similarity metric
         metric_filter_option = MetricFilterOptions(
@@ -199,11 +225,11 @@ class GuardrailsApi(object):
         parsed = None
         try:
             res = Evaluate.sync_detailed(client=client, body=profiling_request, log=self._log)
-            self._check_version_headers(res)
+            self._check_version_headers(res, span)
             parsed = res.parsed
         except Exception as error:  # noqa
             LOGGER.warning(f"GuardRail eval_response error: {error}")
-            self._check_version_headers(res)
+            self._check_version_headers(res, span)
 
             return None
         if isinstance(parsed, HTTPValidationError):
@@ -214,7 +240,7 @@ class GuardrailsApi(object):
         return res
 
     def eval_chunk(self, chunk: str, context: Optional[Context] = None,
-                   span: Optional[Span] = None) -> Optional[Response[EvaluationResult | HTTPValidationError]]:
+                   span: Optional[Span] = None) -> Optional[Response[Union[EvaluationResult, HTTPValidationError]]]:
         dataset_id = os.environ.get("CURRENT_DATASET_ID") or self._dataset_id
         if dataset_id is None:
             LOGGER.warning("GuardRail eval_chunk requires a dataset_id but dataset_id is None.")
@@ -226,10 +252,10 @@ class GuardrailsApi(object):
         try:
             res = Evaluate.sync_detailed(client=client, body=profiling_request, log=self._log)
             parsed = res.parsed
-            self._check_version_headers(res)
+            self._check_version_headers(res, span)
         except Exception as error:  # noqa
             LOGGER.warning(f"GuardRail eval_chunk error: {error}")
-            self._check_version_headers(res)
+            self._check_version_headers(res, span)
             return None
         if isinstance(parsed, HTTPValidationError):
             LOGGER.warning(f"GuardRail request validation failure detected. Possible version mismatched: {res}")
