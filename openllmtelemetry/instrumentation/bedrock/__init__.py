@@ -194,10 +194,18 @@ def _instrumented_model_invoke(fn, tracer, secure_api: GuardrailsApi):
                 eval_result = _handle_request(secure_api, prompt, guardrail_span)
 
             def blocked_message_factory(eval_result: Optional[EvaluationResult] = None, is_prompt=True, is_streaming=False, request_id = None):
+                message = None
+                if eval_result and hasattr(eval_result, "action"):
+                    action = eval_result.action
+                    if hasattr(action, "message"):
+                        message = action.message
+                    elif hasattr(action, "block_message"):
+                        message = action.block_message
+
                 if is_prompt:
-                    content = f"Prompt blocked by WhyLabs: {eval_result.action.block_message}"
+                    content = f"Prompt blocked by WhyLabs: {message}"
                 else:
-                    content = f"Response blocked by WhyLabs: {eval_result.action.block_message}"
+                    content = f"Response blocked by WhyLabs: {message}"
                 blocked_message = os.environ.get("GUARDRAILS_BLOCKED_MESSAGE_OVERRIDE", content)
                 # default to Amazon's response format
                 response_content = json.dumps({
