@@ -226,8 +226,7 @@ def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Opti
                         span.set_attribute("langkit.insights.tags", tags)
                 return evaluation_result
             except Exception as e:  # noqa: E722
-                LOGGER.warning("Error evaluating prompt")
-                logging.exception(f"Error evaluating prompt: {e}")
+                LOGGER.warning(f"Error evaluating prompt: {e}")
                 span.set_attribute("guardrails.error", 1)
                 # TODO: set more attributes to help us diagnose in our side
                 return None
@@ -241,8 +240,8 @@ def _guard_response(guardrails, prompt, response, tracer):
             # noinspection PyBroadException
             try:
                 result: Optional[EvaluationResult] = guardrails.eval_response(prompt=prompt, response=response, context=set_span_in_context(span))
+                LOGGER.debug(f"Response is: {result}")
                 if result:
-                    LOGGER.debug("Response evaluated: %s", result)
                     if hasattr(result, "parsed"):
                         parsed_results = getattr(result, "parsed", None)
                         if parsed_results is not None:
@@ -280,7 +279,7 @@ def _guard_response(guardrails, prompt, response, tracer):
                     if len(tags) > 0:
                         span.set_attribute("langkit.insights.tags", tags)
                 return result
-            except:  # noqa: E722
-                LOGGER.warning("Error evaluating response")
+            except Exception as error:
+                LOGGER.warning(f"Error evaluating response: {error}")
                 span.set_attribute("guardrails.error", 1)
                 return None

@@ -187,7 +187,8 @@ class GuardrailsApi(object):
             parsed = res.parsed
         except Exception as error:  # noqa
             LOGGER.warning(f"GuardRail eval_prompt error: {error}")
-            self._check_version_headers(res, span)
+            if res:
+                self._check_version_headers(res, span)
             return None
 
         if isinstance(parsed, HTTPValidationError):
@@ -229,7 +230,8 @@ class GuardrailsApi(object):
             parsed = res.parsed
         except Exception as error:  # noqa
             LOGGER.warning(f"GuardRail eval_response error: {error}")
-            self._check_version_headers(res, span)
+            if res:
+                self._check_version_headers(res, span)
 
             return None
         if isinstance(parsed, HTTPValidationError):
@@ -255,7 +257,8 @@ class GuardrailsApi(object):
             self._check_version_headers(res, span)
         except Exception as error:  # noqa
             LOGGER.warning(f"GuardRail eval_chunk error: {error}")
-            self._check_version_headers(res, span)
+            if res:
+                self._check_version_headers(res, span)
             return None
         if isinstance(parsed, HTTPValidationError):
             LOGGER.warning(f"GuardRail request validation failure detected. Possible version mismatched: {res}")
