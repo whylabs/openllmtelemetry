@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Dict, List, Optional, Union
 
 from opentelemetry.trace import Span, SpanKind, set_span_in_context
@@ -183,21 +184,28 @@ def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Opti
         with _create_guardrail_span(tracer, "guardrails.request") as span:
             # noinspection PyBroadException
             try:
-                evaluation_result = guardrails_api.eval_prompt(prompt, context=set_span_in_context(span))
+                evaluation_result = guardrails_api.eval_prompt(prompt, context=set_span_in_context(span), span=span)
                 if hasattr(evaluation_result, "parsed"):
                     parsed_results = getattr(evaluation_result, "parsed", None)
                     if parsed_results is not None:
                         evaluation_result = parsed_results
-                
+
                 LOGGER.debug("Prompt evaluated: %s", evaluation_result)
                 if evaluation_result:
-                    # The underlying API can handle batches of inputs, so we always get a list of metrics
+                    client_side_metrics = os.environ.get("INCLUDE_CLIENT_SIDE_GUARDRAILS_METRICS", None)
+                    if not client_side_metrics:
+                        span.set_attribute("guardrails.client_side_metrics.tracing", 0)
+                        return evaluation_result
+                    span.set_attribute("guardrails.client_side_metrics.tracing", 1)
                     metrics = evaluation_result.metrics[0]
 
                     for k in metrics.additional_keys:
                         if metrics.additional_properties[k] is not None:
                             if not str(k).endswith(".redacted"):
-                                span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{k}", metrics.additional_properties[k])
+                                value = metrics.additional_properties[k]
+                                if not isinstance(value, (str, bool, int, float)):
+                                    value = str(value)
+                                span.set_attribute(f"{_LANGKIT_METRIC_PREFIX}.{k}", value)
                     scores = evaluation_result.scores
                     if scores and len(scores) > 0:
                         score_dictionary = scores[0].additional_properties
@@ -208,7 +216,7 @@ def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Opti
                     eval_metadata = evaluation_result.metadata.additional_properties
                     if eval_metadata:
                         for metadata_key in eval_metadata:
-                            span.set_attribute(f"guardrails.api.{metadata_key}", eval_metadata[metadata_key])
+                            span.set_attribute(f"guardrails.api.{metadata_key}", str(eval_metadata[metadata_key]))
                     tags = []
                     if evaluation_result.action.action_type == "block":
                         tags.append("BLOCKED")
@@ -239,14 +247,19 @@ def _guard_response(guardrails, prompt, response, tracer):
         with _create_guardrail_span(tracer, "guardrails.response") as span:
             # noinspection PyBroadException
             try:
-                result: Optional[EvaluationResult] = guardrails.eval_response(prompt=prompt, response=response, context=set_span_in_context(span))
+                result: Optional[EvaluationResult] = guardrails.eval_response(prompt=prompt, response=response, context=set_span_in_context(span), span=span)
                 LOGGER.debug(f"Response is: {result}")
                 if result:
                     if hasattr(result, "parsed"):
                         parsed_results = getattr(result, "parsed", None)
                         if parsed_results is not None:
                             result = parsed_results
-
+                    if result:
+                        client_side_metrics = os.environ.get("INCLUDE_CLIENT_SIDE_GUARDRAILS_METRICS", None)
+                        if not client_side_metrics:
+                            span.set_attribute("guardrails.client_side_metrics.tracing", 0)
+                            return result
+                        span.set_attribute("guardrails.client_side_metrics.tracing", 1)
                     # The underlying API can handle batches of inputs, so we always get a list of metrics
                     metrics = result.metrics[0]
 
