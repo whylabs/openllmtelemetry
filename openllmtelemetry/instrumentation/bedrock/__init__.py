@@ -94,6 +94,11 @@ def _handle_request(guardrails_api: Optional[GuardrailsApi], prompt: str, span: 
         else:
             evaluation_results = guardrail_response
     if evaluation_results and span is not None:
+        client_side_metrics = os.environ.get("INCLUDE_CLIENT_SIDE_GUARDRAILS_METRICS", None)
+        if not client_side_metrics:
+            span.set_attribute("guardrails.client_side_metrics.tracing", 0)
+            return evaluation_results
+        span.set_attribute("guardrails.client_side_metrics.tracing", 1)
         LOGGER.debug(evaluation_results)
         metrics = evaluation_results
         metrics = evaluation_results.metrics[0]
@@ -134,7 +139,11 @@ def _handle_response(secure_api: Optional[GuardrailsApi], prompt, response, span
     if response_metrics:
         LOGGER.debug(response_metrics)
         metrics = response_metrics.metrics[0]
-
+        client_side_metrics = os.environ.get("INCLUDE_CLIENT_SIDE_GUARDRAILS_METRICS", None)
+        if not client_side_metrics:
+            span.set_attribute("guardrails.client_side_metrics.tracing", 0)
+            return response_metrics
+        span.set_attribute("guardrails.client_side_metrics.tracing", 1)
         for k in metrics.additional_keys:
             if metrics.additional_properties[k] is not None:
                 metric_value = metrics.additional_properties[k]
