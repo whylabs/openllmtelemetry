@@ -91,7 +91,7 @@ def sync_wrapper(
             else:
                 LOGGER.warning("Prompt blocked but no blocked message factory provided")
 
-        with tracer.start_span(
+        with tracer.start_as_current_span(
             completion_span_name,
             kind=SpanKind.CLIENT,
             attributes={SpanAttributes.LLM_REQUEST_TYPE: request_type.value, SpanAttributes.SPAN_TYPE: "completion"},
@@ -126,7 +126,7 @@ def start_span(request_type, tracer):
 
 
 def _create_guardrail_span(tracer, name="guardrails.request"):
-    return tracer.start_span(
+    return tracer.start_as_current_span(
         name,
         kind=SpanKind.CLIENT,
         attributes={SpanAttributes.SPAN_TYPE: "guardrails"},
@@ -179,7 +179,7 @@ async def async_wrapper(
         return response
 
 
-def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Optional[EvaluationResult]:
+def _evaluate_prompt(tracer, guardrails_api: Optional[GuardrailsApi], prompt: str) -> Optional[EvaluationResult]:
     if guardrails_api:
         with _create_guardrail_span(tracer, "guardrails.request") as span:
             # noinspection PyBroadException
@@ -242,12 +242,12 @@ def _evaluate_prompt(tracer, guardrails_api: GuardrailsApi, prompt: str) -> Opti
     return None
 
 
-def _guard_response(guardrails, prompt, response, tracer):
+def _guard_response(guardrails: Optional[GuardrailsApi], prompt, response, tracer) -> Optional[EvaluationResult]:
     if guardrails:
         with _create_guardrail_span(tracer, "guardrails.response") as span:
             # noinspection PyBroadException
             try:
-                result: Optional[EvaluationResult] = guardrails.eval_response(prompt=prompt, response=response, context=set_span_in_context(span), span=span)
+                result = guardrails.eval_response(prompt=prompt, response=response, context=set_span_in_context(span), span=span)
                 LOGGER.debug(f"Response is: {result}")
                 if result:
                     if hasattr(result, "parsed"):
