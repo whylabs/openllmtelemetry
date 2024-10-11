@@ -181,6 +181,7 @@ class GuardrailsApi(object):
         profiling_request = LLMValidateRequest(prompt=prompt, dataset_id=dataset_id, id=content_id)
         client = pass_otel_context(self._client, context=context)
         parsed = None
+        res = None
         try:
             res = Evaluate.sync_detailed(client=client, body=profiling_request, log=self._log)
             self._check_version_headers(res, span)
