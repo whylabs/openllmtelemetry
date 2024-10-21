@@ -20,6 +20,9 @@ _LANGKIT_METRIC_PREFIX = "langkit.metrics"
 _RESPONSE_SCORE_PREFIX = "response.score."
 _PROMPT_SCORE_PREFIX = "prompt.score."
 
+def _should_trace_prompt_and_response():
+    return (os.getenv("TRACE_PROMPT_AND_RESPONSE") or "false").lower() == "true"
+
 
 def generate_event(report: List[ValidationFailure], eval_metadata: Dict[str, Union[str, float, int]], span: Span):
     policy_version = eval_metadata.get("policy_id")
@@ -182,6 +185,8 @@ async def async_wrapper(
 def _evaluate_prompt(tracer, guardrails_api: Optional[GuardrailsApi], prompt: str) -> Optional[EvaluationResult]:
     if guardrails_api:
         with _create_guardrail_span(tracer, "guardrails.request") as span:
+            if _should_trace_prompt_and_response():
+                span.set_attribute("guardrails.prompt", prompt)
             # noinspection PyBroadException
             try:
                 evaluation_result = guardrails_api.eval_prompt(prompt, context=set_span_in_context(span), span=span)
@@ -245,7 +250,10 @@ def _evaluate_prompt(tracer, guardrails_api: Optional[GuardrailsApi], prompt: st
 def _guard_response(guardrails: Optional[GuardrailsApi], prompt, response, tracer) -> Optional[EvaluationResult]:
     if guardrails:
         with _create_guardrail_span(tracer, "guardrails.response") as span:
-            # noinspection PyBroadException
+            if _should_trace_prompt_and_response():
+                span.set_attribute("guardrails.prompt", prompt)
+                span.set_attribute("guardrails.response", response)
+                    # noinspection PyBroadException
             try:
                 result = guardrails.eval_response(prompt=prompt, response=response, context=set_span_in_context(span), span=span)
                 LOGGER.debug(f"Response is: {result}")
