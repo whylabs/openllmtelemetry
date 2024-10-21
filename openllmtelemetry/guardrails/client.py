@@ -29,6 +29,8 @@ def pass_otel_context(client: AuthenticatedClient, context: Optional[Context] = 
     inject(headers, context=context)
     return client.with_headers(headers)
 
+def _should_trace_prompt_and_response():
+    return (os.getenv("TRACE_PROMPT_AND_RESPONSE") or "false").lower() == "true"
 
 class GuardrailsApi(object):
     def __init__(
@@ -171,6 +173,9 @@ class GuardrailsApi(object):
     def eval_prompt(self, prompt: str,
                     context: Optional[Context] = None,
                     span: Optional[Span] = None) -> Optional[Response[Union[EvaluationResult, HTTPValidationError]]]:
+        if _should_trace_prompt_and_response() and span:
+            span.set_attribute("guardrails.prompt", prompt)
+
         dataset_id = self._dataset_id
         LOGGER.info(f"Evaluate prompt for dataset_id: {dataset_id}")
         if dataset_id is None:
@@ -204,6 +209,10 @@ class GuardrailsApi(object):
     def eval_response(self, prompt: str, response: str,
                       context: Optional[Context] = None,
                       span: Optional[Span] = None) -> Optional[Response[Union[EvaluationResult, HTTPValidationError]]]:
+        if _should_trace_prompt_and_response() and span:
+            span.set_attribute("guardrails.prompt", prompt)
+            span.set_attribute("guardrails.response", response)
+
         # nested array so you can model a metric requiring multiple inputs. That line says "only run the metrics
         # that require response OR (prompt and response)", which would cover the input similarity metric
         metric_filter_option = MetricFilterOptions(

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "OpenLLMTelemetry"
-version = "0.0.6"
+version = "0.0.7"
 description = "End-to-end observability with built-in security guardrails."
 authors = ["WhyLabs.ai <support@whylabs.ai>"]
 license = "Apache-2.0"
@@ -15,6 +15,7 @@ opentelemetry-instrumentation-requests = "^0.43b0"
 openai = {version = ">=0.27,<2.0", optional = true}
 boto3 = {version = "^1.18.67", optional = true}
 whylogs-container-client = ">=2.0.2,<3.0.0"
+packaging = "*"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
