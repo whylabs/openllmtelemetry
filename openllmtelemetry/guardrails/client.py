@@ -174,7 +174,7 @@ class GuardrailsApi(object):
                     context: Optional[Context] = None,
                     span: Optional[Span] = None) -> Optional[Response[Union[EvaluationResult, HTTPValidationError]]]:
         if _should_trace_prompt_and_response() and span:
-                span.set_attribute("guardrails.prompt", prompt)
+            span.set_attribute("guardrails.prompt", prompt)
 
         dataset_id = self._dataset_id
         LOGGER.info(f"Evaluate prompt for dataset_id: {dataset_id}")
