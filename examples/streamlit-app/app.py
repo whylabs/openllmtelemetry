@@ -6,7 +6,7 @@ import openllmtelemetry.version
 import streamlit as st
 import openllmtelemetry
 
-st.set_page_config(page_title="ACME Customer Service", page_icon="👩🏽‍💻")
+st.set_page_config(page_title="Example Chatbot", page_icon="👩🏽‍💻")
 
 ORG_ID = os.environ["WHYLABS_API_KEY"][-10:]
 PROMPT_EXAMPLES_FOLDER = "./examples/demo"
@@ -44,7 +44,7 @@ def run_app():
             label="Example", value=prompt_example_text, height=300, key="output_text_input", disabled=True,
         )
 
-    st.subheader("ACME Customer Service Chatbot")
+    st.subheader("Customer Service Chatbot")
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     # Set a default model if one is not set
