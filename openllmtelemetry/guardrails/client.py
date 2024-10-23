@@ -1,7 +1,7 @@
 import logging
 import os
 from importlib.metadata import version
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, List
 
 import whylogs_container_client.api.llm.evaluate as Evaluate
 from httpx import Timeout
@@ -81,7 +81,7 @@ class GuardrailsApi(object):
             LOGGER.warning(f"Error checking the version of the whylogs-container-client package: {error}")
             self._whylogs_client_version = "None"
 
-    def _generate_content_id(self, messages: list[str]) -> Optional[str]:
+    def _generate_content_id(self, messages: List[str]) -> Optional[str]:
         content_id = None
         if self._content_id_provider is not None:
             try:

@@ -1,7 +1,7 @@
 import hashlib
 import os
 from logging import getLogger
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
@@ -19,7 +19,7 @@ _tracer_cache: Dict[str, trace.Tracer] = {}
 _last_added_tracer: Optional[Tuple[str, trace.Tracer]] = None
 
 
-def sha256_content_id_provider(messages: list[str]) -> Optional[str]:
+def sha256_content_id_provider(messages: List[str]) -> Optional[str]:
     if not messages:
         return None
     hashed_strings = [hashlib.sha256(content.encode()).hexdigest() for content in messages]
