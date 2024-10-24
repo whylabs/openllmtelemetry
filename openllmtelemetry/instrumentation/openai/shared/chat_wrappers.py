@@ -29,6 +29,7 @@ from opentelemetry import context as context_api
 from opentelemetry.instrumentation.utils import _SUPPRESS_INSTRUMENTATION_KEY
 from opentelemetry.trace.status import Status, StatusCode
 from whylogs_container_client.models import EvaluationResult
+from openai.types.chat.chat_completion import ChatCompletion
 
 from openllmtelemetry.guardrails import GuardrailsApi  # noqa: E402
 from openllmtelemetry.guardrails.handlers import async_wrapper, sync_wrapper
@@ -47,6 +48,11 @@ SPAN_NAME = "openai.chat"
 LLM_REQUEST_TYPE = LLMRequestTypeValues.CHAT
 
 LOGGER = logging.getLogger(__name__)
+
+
+class ChatCompletionProxy(ChatCompletion):
+    def parse(self):
+        return self
 
 
 def create_prompt_provider(kwargs):
@@ -132,7 +138,7 @@ def chat_wrapper(tracer, guardrails_api: GuardrailsApi, wrapped, instance, args,
             blocked_id_prefix = "whylabs-guardrails-blocked-prompt" if is_prompt else "whylabs-guardrails-blocked"
             blocked_id = f".{guardrails_api._content_id_provider([prompt_provider()])}" if guardrails_api._content_id_provider is not None else ""
             if not is_streaming:
-                return ChatCompletion(
+                result = ChatCompletionProxy(
                     id=f"{blocked_id_prefix}{blocked_id}",
                     choices=[
                         choice,
@@ -143,6 +149,8 @@ def chat_wrapper(tracer, guardrails_api: GuardrailsApi, wrapped, instance, args,
                     system_fingerprint=None,
                     usage=CompletionUsage(completion_tokens=0, prompt_tokens=0, total_tokens=0),
                 )
+
+                return result
             else:
                 return ChatCompletionChunk(
                     id="whylabs-guardrails-blocked",

@@ -129,6 +129,9 @@ def is_streaming_response(response):
 
 
 def model_as_dict(model):
+    if hasattr(model, "parse"):
+        parsed_model = model.parse()
+        return parsed_model.model_dump()
     if version("pydantic") < "2.0.0":
         return model.dict()
 
