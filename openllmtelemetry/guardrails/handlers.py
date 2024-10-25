@@ -6,7 +6,7 @@ from opentelemetry.trace import Span, SpanKind, set_span_in_context
 from opentelemetry.util.types import Attributes
 from whylogs_container_client.models import EvaluationResult
 from whylogs_container_client.models.validation_failure import ValidationFailure
-from whylogs_container_client.types import Unset
+from whylogs_container_client.types import Unset, Response
 
 from openllmtelemetry.guardrails import GuardrailsApi
 from openllmtelemetry.semantic_conventions.gen_ai import LLMRequestTypeValues, SpanAttributes
@@ -84,6 +84,11 @@ def sync_wrapper(
     with start_span(request_type, tracer):
         prompt = prompt_provider()
         prompt_eval = _evaluate_prompt(tracer, guardrails_client, prompt)
+        if isinstance(prompt_eval, Response):
+            if prompt_eval.status_code != 200:
+                LOGGER.error(
+                    f"Can't make requests to the guardrails API, error code: {prompt_eval.status_code}"
+                )
 
         if prompt_eval and prompt_eval.action and prompt_eval.action.action_type == "block":
             if blocked_message_factory:
