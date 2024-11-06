@@ -50,10 +50,25 @@ LOGGER = logging.getLogger(__name__)
 
 
 def create_prompt_provider(kwargs):
-    def prompt_provider():
-        messages = kwargs.get("messages")
-        user_messages = [m["content"] for m in messages if m["role"] == "user"]
-        prompt = user_messages[-1]
+    def prompt_provider() -> Optional[str]:
+        prompt: Optional[str] = None
+        if kwargs and "messages" in kwargs:
+            messages = kwargs.get("messages")
+            try:
+                user_messages = [m["content"] for m in messages if m["role"] == "user"]
+                non_system_messages = [m["content"] for m in messages if m["role"] != "system"]
+                if user_messages:
+                    prompt = user_messages[-1]
+                elif non_system_messages:
+                    prompt = non_system_messages[-1]
+                else:
+                    LOGGER.info("skipping tracing prompt because messages was empty or only "
+                                "contained role=system messages")
+            except Exception as error:
+                LOGGER.warning("Error trying to extract the last user message, "
+                                f"skipping user prompt tracing due to: {error}")
+        else:
+            LOGGER.info("no messages in kwargs, skipping prompt tracing")
         return prompt
 
     return prompt_provider
