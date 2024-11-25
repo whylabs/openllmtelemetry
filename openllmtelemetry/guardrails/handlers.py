@@ -89,13 +89,14 @@ def sync_wrapper(
                 LOGGER.error(
                     f"Can't make requests to the guardrails API, error code: {prompt_eval.status_code}"
                 )
-
-        if prompt_eval and prompt_eval.action and prompt_eval.action.action_type == "block":
+        if not hasattr(prompt_eval, "action"):
+            LOGGER.warning(f"No block action returned from guardrails API, skipping guardrail: {prompt_eval}")
+        elif prompt_eval and prompt_eval.action and prompt_eval.action.action_type == "block":
             if blocked_message_factory:
                 return blocked_message_factory(prompt_eval, True)
             else:
                 LOGGER.warning("Prompt blocked but no blocked message factory provided")
-
+        response = None
         with tracer.start_as_current_span(
             completion_span_name,
             kind=SpanKind.CLIENT,
@@ -187,6 +188,9 @@ async def async_wrapper(
 def _evaluate_prompt(tracer, guardrails_api: Optional[GuardrailsApi], prompt: str) -> Optional[EvaluationResult]:
     if guardrails_api:
         with _create_guardrail_span(tracer, "guardrails.request") as span:
+            if not prompt:
+                span.set_attribute("guardrails.skipped", "no user prompt")
+                return None
             # noinspection PyBroadException
             try:
                 evaluation_result = guardrails_api.eval_prompt(prompt, context=set_span_in_context(span), span=span)
@@ -250,6 +254,9 @@ def _evaluate_prompt(tracer, guardrails_api: Optional[GuardrailsApi], prompt: st
 def _guard_response(guardrails: Optional[GuardrailsApi], prompt, response, tracer) -> Optional[EvaluationResult]:
     if guardrails:
         with _create_guardrail_span(tracer, "guardrails.response") as span:
+            if not prompt and not response:
+                span.set_attribute("guardrails.skipped", "no user prompt and no response to guard")
+                return None
             # noinspection PyBroadException
             try:
                 result = guardrails.eval_response(prompt=prompt, response=response, context=set_span_in_context(span), span=span)

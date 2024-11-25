@@ -15,6 +15,9 @@ class DebugOTLSpanExporter(OTLPSpanExporter):
             LOGGER.debug(f"Exporting span: {span.name}")
         try:
             response = super().export(spans)
+            if hasattr(response, "name"):
+                if response.name == "FAILURE":
+                    LOGGER.warning(f"Failure exporting spans to {self._endpoint}, status: {response}")
             LOGGER.debug("Done exporting spans")
             return response
         except Exception as e:

@@ -84,6 +84,7 @@ class GuardrailConfig(object):
             whylabs_api_key_header = {"X-API-Key": self.whylabs_api_key, "X-WHYLABS-RESOURCE": dataset_id}
             # TODO: support other kinds of exporters
             if debug_enabled:
+                LOGGER.info(f"created DebugOTLSpanExporter with endpoint: {self.whylabs_traces_endpoint}")
                 otlp_exporter = DebugOTLSpanExporter(
                     endpoint=self.whylabs_traces_endpoint,
                     headers=whylabs_api_key_header,  # noqa: F821
